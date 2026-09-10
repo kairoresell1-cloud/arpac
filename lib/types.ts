@@ -30,6 +30,11 @@ export type Snapshot = {
   storage: 'demo' | 'local' | 'supabase';
   ai: { configured: boolean; last4: string; model: string };
 };
+// Server-side storage only. Use snapshotFor before returning data to a client.
+export type LocalWorkspace = Snapshot & {
+  accounts?: { id: string; email: string; passwordHash: string; role: Exclude<Role, 'owner'> }[];
+  projectMembers?: Record<string, string[]>;
+};
 export const taskStates = [
   'proposto',
   'approvato',

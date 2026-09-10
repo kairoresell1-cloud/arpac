@@ -1,7 +1,7 @@
 import { randomUUID, randomBytes } from 'node:crypto';
 import { createIfMissing, readOptional, readJson, writeJson, removeFile } from './local-files';
 import { LocalStorageError } from './errors';
-import type { Item, Snapshot } from './types';
+import type { Item, Snapshot, LocalWorkspace } from './types';
 export const isDemo = () =>
   process.env.NODE_ENV === 'development' && !process.env.NEXT_PUBLIC_SUPABASE_URL;
 export const isStandalone = () =>
@@ -232,8 +232,8 @@ export async function readDemo(): Promise<Snapshot> {
   await createIfMissing('demo.json', JSON.stringify(seed()));
   return { ...(await readJson<Snapshot>('demo.json'))!, storage: 'demo' };
 }
-export async function readStandalone(): Promise<Snapshot> {
-  let state = await readJson<Snapshot>('workspace.json');
+export async function readStandalone(): Promise<LocalWorkspace> {
+  let state = await readJson<LocalWorkspace>('workspace.json');
   if (!state) {
     // Preserve real data written by the previous release; never import demo records.
     const legacy = await readJson<Snapshot>('demo.json');
@@ -277,7 +277,7 @@ export async function mutateDemo<T>(fn: (s: Snapshot) => T | Promise<T>): Promis
   queue = task.catch(() => {});
   return task;
 }
-export async function mutateStandalone<T>(fn: (s: Snapshot) => T | Promise<T>): Promise<T> {
+export async function mutateStandalone<T>(fn: (s: LocalWorkspace) => T | Promise<T>): Promise<T> {
   const task = queue.then(async () => {
     const state = await readStandalone();
     const result = await fn(state);

@@ -8,6 +8,7 @@ import { actor, admin } from '@/lib/supabase';
 import { canTransition, requireOwner, canEditMemory } from '@/lib/rules';
 import { enqueue, provider, generate } from '@/lib/ai';
 import type { Item } from '@/lib/types';
+import { avatarValueSchema } from '@/lib/avatar';
 const schema = z.object({
   action: z.enum([
     'create',
@@ -199,7 +200,7 @@ export async function POST(req: Request) {
       const d = z
         .object({
           name: z.string().min(1).max(80),
-          avatar: z.string().max(4),
+          avatar: avatarValueSchema,
           bio: z.string().max(500),
           skills: z.string().max(1000),
           availability: z.string().max(500),
@@ -360,7 +361,12 @@ export async function POST(req: Request) {
             .max(1000000)
             .parse(p.data.budget || 0),
         };
-      if (p.kind === 'message') data = { author: state.user.name, author_id: state.user.id };
+      if (p.kind === 'message')
+        data = {
+          author: state.user.name,
+          author_id: state.user.id,
+          author_avatar: state.user.avatar,
+        };
       if (p.kind === 'conversation') {
         data = {
           channel: String(p.data.channel || 'generale'),

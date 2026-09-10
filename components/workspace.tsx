@@ -35,6 +35,8 @@ import {
 import type { Item, Snapshot } from '@/lib/types';
 import { taskStates } from '@/lib/types';
 import { canTransition } from '@/lib/rules';
+import Avatar from './avatar';
+import AvatarEditor from './avatar-editor';
 type Page =
   | 'HQ'
   | 'Conversazioni'
@@ -103,7 +105,9 @@ export default function Workspace({ initial }: { initial: Snapshot }) {
     [month, setMonth] = useState(new Date().getMonth()),
     [year, setYear] = useState(new Date().getFullYear());
   const dialog = useRef<HTMLDialogElement>(null),
-    end = useRef<HTMLDivElement>(null);
+    end = useRef<HTMLDivElement>(null),
+    providerInput = useRef<HTMLInputElement>(null),
+    modelInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const context = (
@@ -304,7 +308,7 @@ export default function Workspace({ initial }: { initial: Snapshot }) {
                 {m.title === 'ARPAC' ? (
                   <Goat />
                 ) : (
-                  <span className="avatar">{m.title.slice(0, 2).toUpperCase()}</span>
+                  <Avatar value={m.data.author_avatar as string} name={m.title} />
                 )}
               </div>
               <div className="bubble">
@@ -441,7 +445,7 @@ export default function Workspace({ initial }: { initial: Snapshot }) {
               <Bell size={19} />
               <span className="notification-dot" />
             </button>
-            <div className="avatar owner">{s.user.avatar}</div>
+            <Avatar value={s.user.avatar} name={s.user.name} className="owner" />
             <button
               className="mobile-menu icon-button"
               aria-label="Apri menu"
@@ -673,9 +677,7 @@ export default function Workspace({ initial }: { initial: Snapshot }) {
                           <div className="between">
                             <div className="avatar-stack">
                               {s.profiles.map((u) => (
-                                <span className="avatar" key={u.id}>
-                                  {u.avatar}
-                                </span>
+                                <Avatar key={u.id} value={u.avatar} name={u.name} />
                               ))}
                             </div>
                             <button
@@ -987,9 +989,10 @@ export default function Workspace({ initial }: { initial: Snapshot }) {
                             <span>
                               <Clock size={12} /> {date(t.data.due)}
                             </span>
-                            <span className="avatar">
-                              {s.profiles.find((p) => p.id === t.data.assignee)?.avatar || '?'}
-                            </span>
+                            <Avatar
+                              value={s.profiles.find((p) => p.id === t.data.assignee)?.avatar}
+                              name={s.profiles.find((p) => p.id === t.data.assignee)?.name}
+                            />
                           </div>
                         </button>
                       ))}
@@ -1263,7 +1266,7 @@ export default function Workspace({ initial }: { initial: Snapshot }) {
               <div className="project-grid">
                 {s.profiles.map((p) => (
                   <section className="panel person" key={p.id}>
-                    <span className="avatar large">{p.avatar}</span>
+                    <Avatar value={p.avatar} name={p.name} className="large" />
                     <h2>{p.name}</h2>
                     <p>{p.bio}</p>
                     <small>COMPETENZE</small>
@@ -1305,12 +1308,13 @@ export default function Workspace({ initial }: { initial: Snapshot }) {
                     )}
                     <label>
                       Modello
-                      <input id="model" defaultValue={s.ai.model} />
+                      <input id="model" ref={modelInput} defaultValue={s.ai.model} />
                     </label>
                     <label>
                       Gemini API key
                       <input
                         id="api-key"
+                        ref={providerInput}
                         type="password"
                         autoComplete="new-password"
                         placeholder={
@@ -1472,7 +1476,7 @@ export default function Workspace({ initial }: { initial: Snapshot }) {
             </div>
           </div>
           <button className="profile-button" onClick={() => setModal('profile')}>
-            <span className="avatar owner">{s.user.avatar}</span>
+            <Avatar value={s.user.avatar} name={s.user.name} className="owner" />
             <span>
               {s.user.name}
               <small>{s.role}</small>
@@ -1513,6 +1517,9 @@ export default function Workspace({ initial }: { initial: Snapshot }) {
             close={() => setModal('')}
             notify={notify}
             refresh={refresh}
+            openModal={setModal}
+            providerInput={providerInput}
+            modelInput={modelInput}
           />
         </div>
       </dialog>
@@ -1538,6 +1545,9 @@ function ModalContent({
   close,
   notify,
   refresh,
+  openModal,
+  providerInput,
+  modelInput,
 }: {
   modal: string;
   s: Snapshot;
@@ -1547,8 +1557,16 @@ function ModalContent({
   close: () => void;
   notify: (s: string) => void;
   refresh: () => Promise<void>;
+  openModal: (s: string) => void;
+  providerInput: React.RefObject<HTMLInputElement | null>;
+  modelInput: React.RefObject<HTMLInputElement | null>;
 }) {
   const [localBusy, setLocalBusy] = useState(false);
+  const [createdAccount, setCreatedAccount] = useState<{
+    email: string;
+    password: string;
+    name: string;
+  } | null>(null);
   const [accessIds, setAccessIds] = useState<string[] | null>(
     s.demo ? s.profiles.map((u) => u.id) : null,
   );
@@ -1898,22 +1916,31 @@ function ModalContent({
           onClick={async () => {
             setLocalBusy(true);
             try {
-              const input = document.getElementById('api-key') as HTMLInputElement;
+              const input = providerInput.current;
+              const model = modelInput.current;
+              if (type === 'provider-save' && !input?.value.trim()) {
+                throw new Error('Incolla prima la chiave Gemini nel campo sopra.');
+              }
+              if (!model?.value.trim()) throw new Error('Inserisci il modello Gemini.');
               const res = await fetch('/api/provider', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   action: type === 'provider-save' ? 'save' : 'remove',
-                  key: input.value,
-                  model: (document.getElementById('model') as HTMLInputElement).value,
+                  key: input?.value || '',
+                  model: model.value.trim(),
                   confirm: true,
                 }),
+                signal: AbortSignal.timeout(60000),
               });
-              input.value = '';
               const result = await res.json();
               if (!res.ok) throw new Error(result.error);
               await refresh();
-              notify('Configurazione aggiornata.');
+              notify(
+                type === 'provider-save'
+                  ? `Gemini verificato e salvato (••••${result.last4}).`
+                  : 'Chiave Gemini rimossa.',
+              );
               close();
             } catch (e) {
               notify((e as Error).message);
@@ -1926,46 +1953,133 @@ function ModalContent({
         </button>
       </>
     );
+  if (type === 'avatar')
+    return (
+      <AvatarEditor
+        value={s.user.avatar}
+        name={s.user.name}
+        busy={busy}
+        onCancel={close}
+        onSave={(avatar) =>
+          act(
+            {
+              action: 'profile',
+              data: {
+                name: s.user.name,
+                avatar,
+                bio: s.user.bio,
+                skills: s.user.skills,
+                availability: s.user.availability,
+              },
+            },
+            'Avatar aggiornato.',
+          ).then((ok) => {
+            if (ok) close();
+            return ok;
+          })
+        }
+      />
+    );
   if (type === 'invite')
     return (
       <>
-        <h2>Invita nel team</h2>
-        <p>
-          Il membro riceverà un’email per scegliere la password. Nessuna registrazione pubblica.
-        </p>
-        <form
-          onSubmit={async (e) => {
-            e.preventDefault();
-            if (s.demo) {
-              notify('Gli inviti reali richiedono Supabase configurato.');
-              return;
-            }
-            setLocalBusy(true);
-            try {
-              const r = await fetch('/api/invites', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: new FormData(e.currentTarget).get('email') }),
-              });
-              const d = await r.json();
-              if (!r.ok) throw new Error(d.error);
-              notify('Invito inviato.');
-              close();
-            } catch (e) {
-              notify((e as Error).message);
-            } finally {
-              setLocalBusy(false);
-            }
-          }}
-        >
-          <label>
-            Email
-            <input type="email" name="email" required />
-          </label>
-          <button className="primary" disabled={localBusy}>
-            Invia invito
-          </button>
-        </form>
+        <h2>Crea accesso membro</h2>
+        <p>Crea tu email e password e consegnale al membro. Non serve aspettare un’email.</p>
+        {createdAccount ? (
+          <div className="account-created" role="status">
+            <strong>Account creato.</strong>
+            <p>Consegna queste credenziali a {createdAccount.name}:</p>
+            <label>
+              Email
+              <input readOnly value={createdAccount.email} />
+            </label>
+            <label>
+              Password
+              <input readOnly value={createdAccount.password} />
+            </label>
+            <small>La password non verrà mostrata di nuovo dopo aver chiuso questa finestra.</small>
+            <button type="button" className="primary" onClick={close}>
+              Ho copiato le credenziali
+            </button>
+          </div>
+        ) : (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              setLocalBusy(true);
+              try {
+                const form = new FormData(e.currentTarget);
+                const password = String(form.get('password') || '');
+                const r = await fetch('/api/accounts', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({
+                    name: form.get('name'),
+                    email: form.get('email'),
+                    password,
+                    role: form.get('role'),
+                    project_ids: form.getAll('project_ids'),
+                  }),
+                });
+                const d = await r.json();
+                if (!r.ok) throw new Error(d.error);
+                setCreatedAccount({
+                  name: String(form.get('name')),
+                  email: String(form.get('email')),
+                  password,
+                });
+                await refresh();
+              } catch (e) {
+                notify((e as Error).message);
+              } finally {
+                setLocalBusy(false);
+              }
+            }}
+          >
+            <label>
+              Nome
+              <input name="name" required maxLength={80} />
+            </label>
+            <label>
+              Email
+              <input type="email" name="email" required />
+            </label>
+            <label>
+              Password (almeno 10 caratteri)
+              <input
+                name="password"
+                type="password"
+                minLength={10}
+                autoComplete="new-password"
+                required
+              />
+            </label>
+            <label>
+              Ruolo
+              <select name="role" defaultValue="membro">
+                <option value="membro">Membro</option>
+                <option value="admin">Admin</option>
+                <option value="viewer">Viewer</option>
+              </select>
+            </label>
+            {s.items.some((i) => i.kind === 'project') && (
+              <fieldset>
+                <legend>Accesso ai progetti</legend>
+                {s.items
+                  .filter((i) => i.kind === 'project')
+                  .map((p) => (
+                    <label className="checkbox" key={p.id}>
+                      <input type="checkbox" name="project_ids" value={p.id} />
+                      {p.title}
+                    </label>
+                  ))}
+              </fieldset>
+            )}
+            <button className="primary" disabled={localBusy}>
+              {localBusy ? 'Creazione…' : 'Crea account'}
+            </button>
+          </form>
+        )}
       </>
     );
   const titles: Record<string, string> = {
@@ -1977,6 +2091,7 @@ function ModalContent({
     channel: 'Nuovo canale del progetto',
     research: 'Cerca fonti online',
     profile: 'Presentati al team',
+    avatar: 'Il tuo avatar Wii',
     role: 'Proponi modifica ruolo',
     plan: 'Il piano del progetto',
     event: 'Proponi evento o milestone',
@@ -1992,10 +2107,17 @@ function ModalContent({
               Nome
               <input name="name" defaultValue={s.user.name} required maxLength={80} />
             </label>
-            <label>
-              Sigla avatar
-              <input name="avatar" defaultValue={s.user.avatar} maxLength={4} />
-            </label>
+            <div className="profile-avatar-row">
+              <Avatar value={s.user.avatar} name={s.user.name} className="large" />
+              <div>
+                <strong>Avatar Wii</strong>
+                <small>Personalizzalo con volto, capelli, occhi e colori.</small>
+                <button type="button" className="secondary" onClick={() => openModal('avatar')}>
+                  Personalizza avatar Wii
+                </button>
+              </div>
+            </div>
+            <input type="hidden" name="avatar" value={s.user.avatar} readOnly />
             <label>
               Di te
               <textarea name="bio" defaultValue={s.user.bio} />

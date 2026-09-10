@@ -1,8 +1,15 @@
 // Next receives an internal URL behind Railway's HTTPS proxy.
 export function publicOrigin(req: Request) {
-  if (process.env.APP_URL) return new URL(process.env.APP_URL).origin;
-  if (process.env.RAILWAY_PUBLIC_DOMAIN)
+  // Railway's public domain must win over an old local APP_URL left in the
+  // service variables. Otherwise browser requests arrive from Railway while
+  // CSRF checks still compare them with http://localhost:3000.
+  const configuredAppUrl = process.env.APP_URL?.trim();
+  const isLocalAppUrl = configuredAppUrl
+    ? /^(https?:\/\/)?(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?\/?$/i.test(configuredAppUrl)
+    : false;
+  if (process.env.RAILWAY_PUBLIC_DOMAIN && (!configuredAppUrl || isLocalAppUrl))
     return new URL('https://' + process.env.RAILWAY_PUBLIC_DOMAIN).origin;
+  if (configuredAppUrl) return new URL(configuredAppUrl).origin;
   const url = new URL(req.url);
   // Standalone Next may use its listening address (0.0.0.0) in req.url.
   // Host is the origin actually requested by the browser.

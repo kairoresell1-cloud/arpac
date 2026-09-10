@@ -140,6 +140,40 @@ test(
         state.items.filter((i) => i.kind === 'conversation' && i.project_id === project.id).length,
         3,
       );
+      const account = await request(
+        '/api/accounts',
+        {
+          name: 'Membro QA',
+          email: 'member@example.com',
+          password: 'member-password-123',
+          role: 'membro',
+          project_ids: [project.id],
+        },
+        cookie,
+      );
+      assert.equal(account.status, 201);
+      const accountData = await account.json();
+      assert.equal(accountData.account.email, 'member@example.com');
+      assert.equal(accountData.account.password, undefined);
+      const memberLogin = await request('/api/auth', {
+        email: 'member@example.com',
+        password: 'member-password-123',
+      });
+      assert.equal(memberLogin.status, 200);
+      const memberCookie = memberLogin.headers.get('set-cookie').split(';')[0];
+      const memberState = await (await request('/api/workspace', undefined, memberCookie)).json();
+      assert.equal(memberState.user.name, 'Membro QA');
+      assert(memberState.items.some((i) => i.id === project.id));
+      assert.equal(
+        (
+          await request(
+            '/api/provider',
+            { action: 'remove', confirm: true, model: 'gemini-2.5-flash' },
+            memberCookie,
+          )
+        ).status,
+        400,
+      );
       state = await stateChange(
         { action: 'create', kind: 'conversation', title: 'test', project_id: project.id },
         cookie,

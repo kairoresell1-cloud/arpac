@@ -15,6 +15,7 @@ import {
 import { createSession, validSession, validCredentials, sessionMaxAge } from '../lib/local-auth';
 import { LocalStorageError } from '../lib/errors';
 import { publicOrigin, requireSameOrigin } from '../lib/request-origin';
+import { avatarForName, decodeAvatar, defaultAvatar, encodeAvatar } from '../lib/avatar';
 
 test('Archivio autonomo: dati vuoti separati dalla demo, migrazione e login persistente', async () => {
   const root = path.resolve('../work/local-tests');
@@ -112,4 +113,13 @@ test('Origine pubblica Railway riconosciuta senza APP_URL; siti esterni rifiutat
     if (domain === undefined) delete process.env.RAILWAY_PUBLIC_DOMAIN;
     else process.env.RAILWAY_PUBLIC_DOMAIN = domain;
   }
+});
+
+test('Avatar Wii: configurazione valida, codifica compatta e input manomesso rifiutato', () => {
+  const value = avatarForName('Luigi');
+  assert(value.startsWith('arpac-avatar:'));
+  assert.deepEqual(decodeAvatar(value), JSON.parse(value.slice('arpac-avatar:'.length)));
+  assert.deepEqual(decodeAvatar(encodeAvatar(defaultAvatar)), defaultAvatar);
+  assert.equal(decodeAvatar('arpac-avatar:{"skin":"hack"}'), null);
+  assert.equal(decodeAvatar('OW'), null);
 });

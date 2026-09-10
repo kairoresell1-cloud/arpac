@@ -8,7 +8,7 @@ Per il percorso GitHub → Railway leggi **[START-QUI.md](START-QUI.md)**. Le se
 
 Puoi caricare il progetto su GitHub e collegarlo a Railway lasciando vuote le variabili Supabase. In produzione ARPAC crea automaticamente un archivio vuoto in `data/` e mostra il login owner. Gemini si configura in seguito da `Impostazioni → AI Provider`. Per conservare i dati tra riavvii Railway, monta un volume su `/app/data`. Supabase resta disponibile come opzione avanzata usando `supabase/schema.sql`.
 
-L’archivio autonomo usa `data/workspace.json`, separato dalla demo. Conserva automaticamente un vecchio `data/demo.json` solo quando è marcato come dati reali (`demo: false`). Usa un solo processo e una sola replica. Non include ancora inviti multiutente, allegati, memoria semantica e worker automatico senza Supabase.
+L’archivio autonomo usa `data/workspace.json`, separato dalla demo. Conserva automaticamente un vecchio `data/demo.json` solo quando è marcato come dati reali (`demo: false`). Include account membri creati dall’owner, accessi ai singoli progetti e avatar personalizzabili. Usa un solo processo e una sola replica; allegati, ricerca semantica e worker automatico richiedono ancora Supabase.
 
 ## Prova locale immediata
 

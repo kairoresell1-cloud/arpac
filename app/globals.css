@@ -220,6 +220,212 @@ form {
   font-size: 20px;
   border-radius: 20px;
 }
+.character-avatar {
+  overflow: hidden;
+  background: transparent;
+}
+.character-avatar svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.character-avatar.large {
+  width: 86px;
+  height: 86px;
+  border-radius: 24px;
+}
+.avatar-studio {
+  width: min(920px, 82vw);
+}
+.avatar-studio > p {
+  margin: 4px 0 22px;
+  color: var(--muted);
+  font-size: 13px;
+}
+.avatar-studio-layout {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  gap: 24px;
+}
+.avatar-preview {
+  min-height: 410px;
+  border-radius: 18px;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #282332;
+}
+.avatar-preview svg {
+  width: 190px;
+  height: 215px;
+  margin: 15px 0;
+  border-radius: 28px;
+  box-shadow: 0 12px 25px #29223822;
+}
+.avatar-preview-tag {
+  font-size: 8px;
+  letter-spacing: 1.5px;
+  font-weight: 700;
+  opacity: 0.65;
+}
+.avatar-preview > strong {
+  font-size: 18px;
+  margin-top: 4px;
+}
+.avatar-shuffle {
+  border: 1px solid #30283d44;
+  background: #ffffff55;
+  color: #282332;
+  border-radius: 9px;
+  padding: 8px 12px;
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+  cursor: pointer;
+}
+.avatar-customize {
+  min-width: 0;
+}
+.avatar-tabs {
+  display: flex;
+  gap: 5px;
+  border-bottom: 1px solid #2d3140;
+  overflow-x: auto;
+}
+.avatar-tabs button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  padding: 8px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.avatar-tabs button[aria-pressed='true'] {
+  border-bottom-color: #a78bfa;
+  color: #e9e4ff;
+}
+.avatar-controls {
+  padding: 18px 0 4px;
+  max-height: 350px;
+  overflow-y: auto;
+}
+.avatar-options,
+.avatar-colors {
+  border: 0;
+  padding: 0;
+  margin: 0 0 18px;
+}
+.avatar-options legend,
+.avatar-colors legend {
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  font-size: 8px;
+  margin-bottom: 9px;
+}
+.avatar-option-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(78px, 1fr));
+  gap: 8px;
+}
+.avatar-option-grid button {
+  position: relative;
+  border: 1px solid #303544;
+  background: #1d222d;
+  color: var(--muted);
+  border-radius: 9px;
+  padding: 5px 4px 7px;
+  cursor: pointer;
+  font-size: 9px;
+}
+.avatar-option-grid button[aria-pressed='true'] {
+  border-color: #a78bfa;
+  color: #f0ebff;
+  background: #2a2540;
+}
+.avatar-option-grid svg {
+  display: block;
+  width: 55px;
+  height: 62px;
+  margin: 0 auto 4px;
+  border-radius: 10px;
+}
+.avatar-option-check {
+  position: absolute;
+  right: 5px;
+  top: 5px;
+  color: #bca6ff;
+}
+.avatar-colors > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+.avatar-colors button {
+  width: 30px;
+  height: 30px;
+  border: 2px solid #ffffff22;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: white;
+  cursor: pointer;
+}
+.avatar-colors button[aria-pressed='true'] {
+  outline: 2px solid #bca6ff;
+  outline-offset: 2px;
+}
+.avatar-slider {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 11px;
+}
+.avatar-slider input {
+  flex: 1;
+}
+.avatar-studio-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 10px;
+}
+.account-created {
+  border: 1px solid #4d4570;
+  background: #27213c;
+  padding: 16px;
+  border-radius: 10px;
+}
+.account-created p,
+.account-created small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.account-created input {
+  user-select: all;
+}
+@media (max-width: 760px) {
+  .avatar-studio {
+    width: min(100%, 90vw);
+  }
+  .avatar-studio-layout {
+    grid-template-columns: 1fr;
+  }
+  .avatar-preview {
+    min-height: 270px;
+  }
+  .avatar-preview svg {
+    width: 145px;
+    height: 165px;
+    margin: 8px 0;
+  }
+}
 .content {
   padding: 24px 38px 0;
   max-width: 1540px;
@@ -1465,6 +1671,22 @@ td small {
 .person > small {
   letter-spacing: 1px;
   font-size: 8px;
+}
+.profile-avatar-row {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin: 4px 0 20px;
+}
+.profile-avatar-row > div {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+}
+.profile-avatar-row small {
+  color: var(--muted);
+  font-size: 10px;
 }
 .settings-grid {
   display: grid;

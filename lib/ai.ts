@@ -78,9 +78,13 @@ export async function generate(
   );
   if (!res.ok)
     throw new Error(
-      res.status === 429
-        ? 'Quota AI esaurita: risposta in coda, chat e dati restano disponibili.'
-        : 'Provider AI temporaneamente non disponibile.',
+      res.status === 400 || res.status === 401
+        ? 'Chiave Gemini non valida oppure modello non disponibile.'
+        : res.status === 403
+          ? 'Google ha rifiutato la chiave: abilita Gemini API nel progetto Google AI Studio.'
+          : res.status === 429
+            ? 'Quota AI esaurita: riprova più tardi o controlla il piano Google.'
+            : 'Provider AI temporaneamente non disponibile.',
     );
   const data = await res.json();
   const text = (data.candidates?.[0]?.content?.parts || [])

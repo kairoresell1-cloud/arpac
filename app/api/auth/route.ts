@@ -2,7 +2,7 @@ import { session } from '@/lib/supabase';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { cookies } from 'next/headers';
-import { createSession, sessionCookie, sessionMaxAge, validCredentials } from '@/lib/local-auth';
+import { createSession, sessionCookie, sessionMaxAge, authenticateLocal } from '@/lib/local-auth';
 import { readStandalone, readLocalAi } from '@/lib/demo';
 import { LocalStorageError, errorStatus } from '@/lib/errors';
 import { publicOrigin, requireSameOrigin } from '@/lib/request-origin';
@@ -19,10 +19,11 @@ export async function POST(req: Request) {
     if (!input.success)
       return NextResponse.json({ error: 'Email o password non validi.' }, { status: 400 });
     if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-      if (!validCredentials(input.data.email, input.data.password))
+      const id = await authenticateLocal(input.data.email, input.data.password);
+      if (!id)
         return NextResponse.json(
           {
-            error: 'Email o password errate. Usa le credenziali owner configurate per questo sito.',
+            error: 'Email o password errate. Usa le credenziali del tuo account ARPAC.',
           },
           { status: 401 },
         );
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
       await checkDataAccess();
       await readStandalone();
       await readLocalAi();
-      const token = await createSession();
+      const token = await createSession(Date.now(), id);
       (await cookies()).set(sessionCookie, token, {
         httpOnly: true,
         sameSite: 'lax',

@@ -2,15 +2,17 @@ import 'server-only';
 import { admin, actor } from './supabase';
 import { isDemo, isStandalone, readDemo, readStandalone, item, mutateStandalone } from './demo';
 import { cookies } from 'next/headers';
-import { sessionCookie, validSession } from './local-auth';
+import { sessionCookie, sessionUserId } from './local-auth';
+import { snapshotFor } from './local-team';
 import { AuthRequiredError } from './errors';
 import type { Snapshot, Item, Profile } from './types';
 export async function snapshot(): Promise<Snapshot> {
   if (isDemo()) return readDemo();
   if (isStandalone()) {
     const jar = await cookies();
-    if (!(await validSession(jar.get(sessionCookie)?.value))) throw new AuthRequiredError();
-    const s = await readStandalone();
+    const id = await sessionUserId(jar.get(sessionCookie)?.value);
+    if (!id) throw new AuthRequiredError();
+    const s = snapshotFor(await readStandalone(), id);
     const ai = await import('./demo').then((m) => m.readLocalAi());
     if (ai) s.ai = { configured: true, last4: ai.last4, model: ai.model };
     return s;
