@@ -2,37 +2,71 @@ import { session } from '@/lib/supabase';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { cookies } from 'next/headers';
+import { createSession, sessionCookie, sessionMaxAge, validCredentials } from '@/lib/local-auth';
+import { readStandalone, readLocalAi } from '@/lib/demo';
+import { LocalStorageError, errorStatus } from '@/lib/errors';
+import { publicOrigin, requireSameOrigin } from '@/lib/request-origin';
+import { checkDataAccess } from '@/lib/local-files';
 export async function POST(req: Request) {
-  const input = z
-    .object({ email: z.email(), password: z.string().min(1).max(200) })
-    .safeParse(await req.json());
-  if (!input.success)
-    return NextResponse.json({ error: 'Email o password non validi.' }, { status: 400 });
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    const email = process.env.OWNER_EMAIL || 'owner@arpac.local';
-    const password = process.env.OWNER_PASSWORD || 'arpac-local-setup';
-    if (input.data.email !== email || input.data.password !== password)
-      return NextResponse.json({ error: 'Accesso non riuscito.' }, { status: 401 });
-    (await cookies()).set('arpac_local_session', 'owner', {
-      httpOnly: true,
-      sameSite: 'lax',
-      secure: process.env.NODE_ENV === 'production',
-      path: '/',
-      maxAge: 60 * 60 * 24 * 30,
-    });
-    return NextResponse.json({ ok: true });
+  try {
+    requireSameOrigin(req);
+    const input = z
+      .object({
+        email: z.string().trim().toLowerCase().pipe(z.email()),
+        password: z.string().min(1).max(200),
+      })
+      .safeParse(await req.json());
+    if (!input.success)
+      return NextResponse.json({ error: 'Email o password non validi.' }, { status: 400 });
+    if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
+      if (!validCredentials(input.data.email, input.data.password))
+        return NextResponse.json(
+          {
+            error: 'Email o password errate. Usa le credenziali owner configurate per questo sito.',
+          },
+          { status: 401 },
+        );
+      // Do not report a successful login if the workspace cannot be opened.
+      await checkDataAccess();
+      await readStandalone();
+      await readLocalAi();
+      const token = await createSession();
+      (await cookies()).set(sessionCookie, token, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: publicOrigin(req).startsWith('https://'),
+        path: '/',
+        maxAge: sessionMaxAge,
+      });
+      return NextResponse.json({ ok: true });
+    }
+    const { error } = await (await session()).auth.signInWithPassword(input.data);
+    return error
+      ? NextResponse.json(
+          { error: 'Accesso non riuscito. Verifica email e password.' },
+          { status: 401 },
+        )
+      : NextResponse.json({ ok: true });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof LocalStorageError
+            ? error.message
+            : 'Accesso non completato. Riprova tra poco.',
+      },
+      { status: errorStatus(error) },
+    );
   }
-  const { error } = await (await session()).auth.signInWithPassword(input.data);
-  return error
-    ? NextResponse.json(
-        { error: 'Accesso non riuscito. Verifica email e password.' },
-        { status: 401 },
-      )
-    : NextResponse.json({ ok: true });
 }
-export async function DELETE() {
+export async function DELETE(req: Request) {
+  try {
+    requireSameOrigin(req);
+  } catch {
+    return NextResponse.json({ error: 'Origine non autorizzata.' }, { status: 403 });
+  }
   if (!process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    (await cookies()).delete('arpac_local_session');
+    (await cookies()).delete(sessionCookie);
     return NextResponse.json({ ok: true });
   }
   await (await session()).auth.signOut();

@@ -11,7 +11,8 @@
     "test": "tsx --test tests/*.test.ts",
     "worker": "tsx scripts/worker.ts",
     "bootstrap": "tsx --env-file=.env.local scripts/bootstrap.ts",
-    "test:http": "tsx --test tests/http/*.test.ts"
+    "test:http": "tsx --test tests/http/*.test.ts",
+    "test:production": "node --test tests/production.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",

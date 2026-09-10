@@ -1,14 +1,11 @@
 import { randomUUID, randomBytes } from 'node:crypto';
-import { mkdir, readFile, writeFile, rename } from 'node:fs/promises';
-import path from 'node:path';
+import { createIfMissing, readOptional, readJson, writeJson, removeFile } from './local-files';
+import { LocalStorageError } from './errors';
 import type { Item, Snapshot } from './types';
 export const isDemo = () =>
   process.env.NODE_ENV === 'development' && !process.env.NEXT_PUBLIC_SUPABASE_URL;
 export const isStandalone = () =>
   process.env.NODE_ENV === 'production' && !process.env.NEXT_PUBLIC_SUPABASE_URL;
-const location = path.join(process.cwd(), 'data', 'demo.json');
-const localKeyPath = path.join(process.cwd(), 'data', '.app-key');
-const localAiPath = path.join(process.cwd(), 'data', 'ai-provider.json');
 export function item(kind: string, title: string, body = '', extra: Partial<Item> = {}): Item {
   const now = new Date().toISOString();
   return {
@@ -41,6 +38,7 @@ export function seed(): Snapshot {
     user,
     role: 'owner',
     demo: true,
+    storage: 'demo',
     ai: { configured: false, last4: '', model: 'gemini-2.5-flash' },
     profiles: [
       user,
@@ -209,6 +207,7 @@ export function blank(): Snapshot {
     user,
     role: 'owner',
     demo: false,
+    storage: 'local',
     ai: { configured: false, last4: '', model: 'gemini-2.5-flash' },
     profiles: [user],
     items: [
@@ -230,70 +229,49 @@ export function blank(): Snapshot {
 }
 let queue: Promise<unknown> = Promise.resolve();
 export async function readDemo(): Promise<Snapshot> {
-  try {
-    return JSON.parse(await readFile(location, 'utf8'));
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
-    const state = seed();
-    await saveDemo(state);
-    return state;
-  }
+  await createIfMissing('demo.json', JSON.stringify(seed()));
+  return { ...(await readJson<Snapshot>('demo.json'))!, storage: 'demo' };
 }
 export async function readStandalone(): Promise<Snapshot> {
-  try {
-    return JSON.parse(await readFile(location, 'utf8'));
-  } catch (e) {
-    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
-    const state = blank();
-    await saveDemo(state);
-    return state;
+  let state = await readJson<Snapshot>('workspace.json');
+  if (!state) {
+    // Preserve real data written by the previous release; never import demo records.
+    const legacy = await readJson<Snapshot>('demo.json');
+    await createIfMissing(
+      'workspace.json',
+      JSON.stringify(legacy?.demo === false ? legacy : blank()),
+    );
+    state = await readJson<Snapshot>('workspace.json');
   }
+  if (!state || state.demo !== false || !Array.isArray(state.items) || !state.user)
+    throw new LocalStorageError(new Error('Archivio non valido.'));
+  return { ...state, storage: 'local' };
 }
 export async function localEncryptionKey(): Promise<string> {
-  try {
-    return (await readFile(localKeyPath, 'utf8')).trim();
-  } catch {
-    const key = randomBytes(32).toString('base64');
-    await mkdir(path.dirname(localKeyPath), { recursive: true });
-    await writeFile(localKeyPath, key, { encoding: 'utf8', mode: 0o600 });
-    return key;
-  }
+  await createIfMissing('.app-key', randomBytes(32).toString('base64'));
+  const key = (await readOptional('.app-key'))?.trim();
+  if (!key || Buffer.from(key, 'base64').length !== 32)
+    throw new LocalStorageError(new Error('Chiave locale non valida.'));
+  return key;
 }
 export async function readLocalAi(): Promise<{
   ciphertext: string;
   last4: string;
   model: string;
 } | null> {
-  try {
-    return JSON.parse(await readFile(localAiPath, 'utf8'));
-  } catch {
-    return null;
-  }
+  return readJson('ai-provider.json');
 }
 export async function writeLocalAi(
   value: { ciphertext: string; last4: string; model: string } | null,
 ) {
-  await mkdir(path.dirname(localAiPath), { recursive: true });
-  if (value) await writeFile(localAiPath, JSON.stringify(value), { encoding: 'utf8', mode: 0o600 });
-  else {
-    try {
-      await rename(localAiPath, localAiPath + '.removed');
-    } catch {
-      /* già rimosso */
-    }
-  }
-}
-async function saveDemo(state: Snapshot) {
-  await mkdir(path.dirname(location), { recursive: true });
-  const temp = location + '.tmp';
-  await writeFile(temp, JSON.stringify(state, null, 2));
-  await rename(temp, location);
+  if (value) await writeJson('ai-provider.json', value);
+  else await removeFile('ai-provider.json');
 }
 export async function mutateDemo<T>(fn: (s: Snapshot) => T | Promise<T>): Promise<T> {
   const task = queue.then(async () => {
     const state = await readDemo();
     const result = await fn(state);
-    await saveDemo(state);
+    await writeJson('demo.json', state);
     return result;
   });
   queue = task.catch(() => {});
@@ -303,7 +281,7 @@ export async function mutateStandalone<T>(fn: (s: Snapshot) => T | Promise<T>): 
   const task = queue.then(async () => {
     const state = await readStandalone();
     const result = await fn(state);
-    await saveDemo(state);
+    await writeJson('workspace.json', state);
     return result;
   });
   queue = task.catch(() => {});

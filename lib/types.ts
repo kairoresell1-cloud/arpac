@@ -27,6 +27,7 @@ export type Snapshot = {
   user: Profile;
   role: Role;
   demo: boolean;
+  storage: 'demo' | 'local' | 'supabase';
   ai: { configured: boolean; last4: string; model: string };
 };
 export const taskStates = [

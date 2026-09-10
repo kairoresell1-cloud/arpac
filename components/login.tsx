@@ -1,14 +1,18 @@
 'use client';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 export default function Login({
   configured,
   standalone = false,
+  initialError = '',
 }: {
   configured: boolean;
   standalone?: boolean;
+  initialError?: string;
 }) {
-  const [error, setError] = useState('');
+  const [error, setError] = useState(initialError);
   const [busy, setBusy] = useState(false);
+  const router = useRouter();
   return (
     <main className="login">
       <div className="panel">
@@ -23,18 +27,37 @@ export default function Login({
             onSubmit={async (e) => {
               e.preventDefault();
               setBusy(true);
+              setError('');
               const f = new FormData(e.currentTarget);
               try {
                 const r = await fetch('/api/auth', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ email: f.get('email'), password: f.get('password') }),
+                  signal: AbortSignal.timeout(20000),
                 });
-                const d = await r.json();
-                if (!r.ok) throw new Error(d.error);
-                location.reload();
+                const d = await r.json().catch(() => ({}));
+                if (!r.ok)
+                  throw new Error(d.error || 'Il server non ha completato l’accesso. Riprova.');
+                const workspace = await fetch('/api/workspace', {
+                  cache: 'no-store',
+                  signal: AbortSignal.timeout(20000),
+                });
+                if (!workspace.ok) {
+                  const result = await workspace.json().catch(() => ({}));
+                  throw new Error(
+                    workspace.status === 401
+                      ? 'La sessione non è stata salvata. Abilita i cookie per questo sito e riprova.'
+                      : result.error || 'Impossibile aprire il workspace. Riprova tra poco.',
+                  );
+                }
+                router.refresh();
               } catch (e) {
-                setError((e as Error).message);
+                setError(
+                  e instanceof DOMException
+                    ? 'Il server non risponde. Riprova tra poco.'
+                    : (e as Error).message,
+                );
               } finally {
                 setBusy(false);
               }

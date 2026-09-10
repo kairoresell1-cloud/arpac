@@ -4,11 +4,15 @@ import { actor, admin } from '@/lib/supabase';
 import { encrypt } from '@/lib/crypto';
 import { requireOwner } from '@/lib/rules';
 import { generate } from '@/lib/ai';
-import { addRecord } from '@/lib/store';
+import { addRecord, snapshot } from '@/lib/store';
+import { AuthRequiredError, LocalStorageError, errorStatus } from '@/lib/errors';
+import { requireSameOrigin } from '@/lib/request-origin';
 import { isStandalone, localEncryptionKey, writeLocalAi } from '@/lib/demo';
 export async function POST(req: Request) {
   try {
+    requireSameOrigin(req);
     if (isStandalone()) {
+      requireOwner((await snapshot()).role);
       const p = z
         .object({
           action: z.enum(['save', 'remove']),
@@ -73,13 +77,15 @@ export async function POST(req: Request) {
       { owner_id: a.id, data: { actor: a.id } },
     );
     return NextResponse.json({ ok: true, last4: p.key.slice(-4) });
-  } catch {
+  } catch (e) {
     return NextResponse.json(
       {
         error:
-          'Configurazione non riuscita. Verifica ruolo owner, chiave, modello, quota e APP_ENCRYPTION_KEY. La chiave precedente è stata conservata.',
+          e instanceof AuthRequiredError || e instanceof LocalStorageError
+            ? e.message
+            : 'Configurazione non riuscita. Verifica ruolo owner, chiave, modello, quota e APP_ENCRYPTION_KEY. La chiave precedente è stata conservata.',
       },
-      { status: 400 },
+      { status: errorStatus(e) },
     );
   }
 }

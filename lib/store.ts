@@ -2,13 +2,14 @@ import 'server-only';
 import { admin, actor } from './supabase';
 import { isDemo, isStandalone, readDemo, readStandalone, item, mutateStandalone } from './demo';
 import { cookies } from 'next/headers';
+import { sessionCookie, validSession } from './local-auth';
+import { AuthRequiredError } from './errors';
 import type { Snapshot, Item, Profile } from './types';
 export async function snapshot(): Promise<Snapshot> {
   if (isDemo()) return readDemo();
   if (isStandalone()) {
     const jar = await cookies();
-    if (jar.get('arpac_local_session')?.value !== 'owner')
-      throw new Error('Accedi per continuare.');
+    if (!(await validSession(jar.get(sessionCookie)?.value))) throw new AuthRequiredError();
     const s = await readStandalone();
     const ai = await import('./demo').then((m) => m.readLocalAi());
     if (ai) s.ai = { configured: true, last4: ai.last4, model: ai.model };
@@ -49,6 +50,7 @@ export async function snapshot(): Promise<Snapshot> {
     user: people.find((p) => p.id === a.id)!,
     role: a.role,
     demo: false,
+    storage: 'supabase',
     ai: {
       configured: !!settings?.last4 || !!process.env.GEMINI_API_KEY,
       last4: settings?.last4 || '',

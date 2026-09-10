@@ -19,6 +19,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 COPY --from=builder --chown=node:node /app/.next/standalone ./
 COPY --from=builder --chown=node:node /app/.next/static ./.next/static
 COPY --from=builder --chown=node:node /app/public ./public
-USER node
+COPY scripts/docker-entrypoint.mjs ./scripts/docker-entrypoint.mjs
+RUN mkdir -p /app/data && chown node:node /app/data
 EXPOSE 3000
-CMD ["node","server.js"]
+CMD ["node","scripts/docker-entrypoint.mjs"]

@@ -1,58 +1,15 @@
-# ARPAC: il percorso minimo
+# ARPAC su Railway
 
-## Cosa fai tu
+1. Estrai lo ZIP e carica **i file e le cartelle contenuti**, direttamente nel repository GitHub collegato a Railway. Non caricare lo ZIP stesso. `Dockerfile`, `railway.toml` e `package.json` devono essere alla radice.
+2. Attendi che Railway completi il nuovo deploy. La versione corretta risponde con `version: "1.0.1"` all’indirizzo `/api/health`.
+3. Apri il sito e accedi. Senza credenziali personalizzate, l’accesso iniziale è `owner@arpac.local` / `arpac-local-setup`. Se hai già impostato `OWNER_EMAIL` e `OWNER_PASSWORD` su Railway, valgono quei valori.
 
-1. Carica il contenuto di questa cartella in un repository GitHub **privato**.
-2. In Railway scegli quel repository e premi Deploy.
-3. In Railway aggiungi le variabili indicate sotto.
+Il codice crea l’archivio vuoto e le chiavi interne automaticamente. Non devi eseguire SQL, bootstrap o comandi locali. Lascia le variabili Supabase assenti per usare questa modalità. Gemini si inserisce nel sito: **Impostazioni → AI Provider → Salva e verifica**.
 
-## Variabili indispensabili Railway
+Per conservare dati e chiave Gemini quando il container viene sostituito, serve un volume Railway montato su `/app/data`: tasto destro sul canvas del progetto → crea volume → collegalo al servizio ARPAC → percorso `/app/data`. Il codice prepara i permessi del volume all’avvio. Questo collegamento si fa una volta; non può essere creato dal solo caricamento del codice GitHub. [Documentazione Railway](https://docs.railway.com/volumes).
 
-Per il percorso più rapido puoi lasciare vuote tutte le variabili Supabase: in produzione ARPAC usa la modalità autonoma, crea un archivio vuoto in `data/` e parte senza SQL Editor.
+Le credenziali iniziali sono pubbliche nel codice: prima di inserire dati privati imposta valori personali in `OWNER_EMAIL` e `OWNER_PASSWORD`. Questa versione mantiene l’accesso owner della precedente consegna; non crea un nuovo account con un’email qualsiasi.
 
-```text
-NEXT_PUBLIC_SUPABASE_URL
-NEXT_PUBLIC_SUPABASE_ANON_KEY
-SUPABASE_SERVICE_ROLE_KEY
-APP_URL
-APP_ENCRYPTION_KEY
-CRON_SECRET
-```
+La modalità autonoma include un owner, profilo, progetti con canali, messaggi, task, approvazioni, calendario, finanze, memorie manuali e configurazione Gemini. Inviti ad altri account, file allegati, ricerca semantica e worker dei briefing richiedono ancora la modalità Supabase descritta nel README. Questa correzione non completa quelle integrazioni nella modalità autonoma.
 
-`APP_URL` è il dominio Railway che Railway ti assegna. Genera `APP_ENCRYPTION_KEY` e `CRON_SECRET` con:
-
-```powershell
-node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
-```
-
-## Modalità autonoma (consigliata per partire subito)
-
-Con le variabili Supabase vuote usa il login iniziale `owner@arpac.local` / `arpac-local-setup`. Meglio impostare `OWNER_EMAIL` e `OWNER_PASSWORD` nelle Variables Railway. Per non perdere i dati quando Railway ricrea il container, aggiungi un volume montato su `/app/data`.
-
-## Opzione Supabase
-
-In Supabase incolla in SQL Editor il solo file `supabase/schema.sql` e premi Run. Questo abilita PostgreSQL, sicurezza, Storage, Realtime e coda AI; non è necessario per il primo deploy autonomo.
-
-Poi aggiungi queste due variabili temporanee in locale ed esegui una sola volta:
-
-```text
-OWNER_EMAIL
-OWNER_PASSWORD
-```
-
-```powershell
-npm install
-npm run bootstrap
-```
-
-Da quel momento inviti tutti gli altri membri dal pulsante Team dentro ARPAC.
-
-## Gemini è facoltativo e si configura dal sito
-
-Dopo il deploy, l’owner inserisce la chiave da `Impostazioni → AI Provider`. Non serve modificare Railway ogni volta e puoi lasciare `GEMINI_API_KEY` vuota.
-
-## Worker automatico
-
-In Railway duplica il servizio e imposta `railway.worker.toml`. Usa le stesse variabili `APP_URL` e `CRON_SECRET`. Il worker gestisce briefing, reminder, report, risposte Gemini e retry.
-
-Il repository è vuoto: `data/`, `.env.local`, `node_modules` e `.next` non vengono caricati. In produzione la modalità demo è disabilitata.
+Lo ZIP non contiene dati, chiavi, password personali, dipendenze o build. I dati reali della versione precedente vengono mantenuti se presenti sul volume; la demo resta separata.

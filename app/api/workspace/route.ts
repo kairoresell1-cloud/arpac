@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { snapshot } from '@/lib/store';
-import { isDemo, isStandalone, mutateDemo, mutateStandalone, item, seed, blank } from '@/lib/demo';
+import { isDemo, isStandalone, mutateDemo, mutateStandalone, item, seed } from '@/lib/demo';
+import { AuthRequiredError, LocalStorageError, errorStatus } from '@/lib/errors';
+import { requireSameOrigin } from '@/lib/request-origin';
 import { actor, admin } from '@/lib/supabase';
 import { canTransition, requireOwner, canEditMemory } from '@/lib/rules';
 import { enqueue, provider, generate } from '@/lib/ai';
@@ -44,15 +46,21 @@ const schema = z.object({
 export async function GET() {
   try {
     return NextResponse.json(await snapshot());
-  } catch {
-    return NextResponse.json({ error: 'Accesso necessario.' }, { status: 401 });
+  } catch (e) {
+    return NextResponse.json(
+      {
+        error:
+          e instanceof AuthRequiredError || e instanceof LocalStorageError
+            ? e.message
+            : 'Workspace non disponibile. Riprova tra poco.',
+      },
+      { status: errorStatus(e) },
+    );
   }
 }
 export async function POST(req: Request) {
   try {
-    const canonicalOrigin = new URL(process.env.APP_URL || req.url).origin;
-    if (req.headers.get('origin') && req.headers.get('origin') !== canonicalOrigin)
-      throw new Error('Origine non autorizzata.');
+    requireSameOrigin(req);
     const p = schema.parse(await req.json());
     const state = await snapshot();
     if (state.role === 'viewer') throw new Error('Il ruolo viewer consente la sola lettura.');
@@ -94,8 +102,7 @@ export async function POST(req: Request) {
     }
     if (p.action === 'reset') {
       if (isDemo()) await mutateDemo((s) => Object.assign(s, seed()));
-      else if (isStandalone()) await mutateStandalone((s) => Object.assign(s, blank()));
-      else throw new Error('Disponibile solo in ambienti configurati.');
+      else throw new Error('Il ripristino è disponibile solo nella demo.');
     } else if (p.action === 'approve' || p.action === 'reject') {
       requireOwner(state.role);
       if (
@@ -114,7 +121,7 @@ export async function POST(req: Request) {
         });
         if (error) throw new Error('Proposta già elaborata o non valida.');
       } else
-        await mutateDemo((s) => {
+        await (isDemo() ? mutateDemo : mutateStandalone)((s) => {
           const r = s.items.find((x) => x.id === p.id)!;
           if (r.status !== 'proposto') throw new Error('Proposta già elaborata.');
           r.status = p.action === 'approve' ? 'approvato' : 'annullato';
@@ -206,7 +213,7 @@ export async function POST(req: Request) {
             .eq('id', a.id);
           if (error) throw new Error('Profilo non salvato.');
         } else
-          await mutateDemo((s) => {
+          await (isDemo() ? mutateDemo : mutateStandalone)((s) => {
             Object.assign(s.user, d, { onboarded: true });
             Object.assign(
               s.profiles.find((u) => u.id === s.user.id)!,
@@ -456,7 +463,7 @@ export async function POST(req: Request) {
             ? 'Controlla i campi del modulo.'
             : (e as Error).message || 'Operazione non riuscita.',
       },
-      { status: 400 },
+      { status: errorStatus(e) },
     );
   }
 }

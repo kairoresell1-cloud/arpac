@@ -4,7 +4,11 @@ Workspace privato in italiano per un piccolo team: Next.js App Router, TypeScrip
 
 ## Deploy rapido senza SQL
 
+Per il percorso GitHub → Railway leggi **[START-QUI.md](START-QUI.md)**. Le sezioni Supabase qui sotto descrivono l’installazione avanzata e non sono passaggi necessari per il login autonomo. La correzione login è identificata da `/api/health` con `version: "1.0.1"`.
+
 Puoi caricare il progetto su GitHub e collegarlo a Railway lasciando vuote le variabili Supabase. In produzione ARPAC crea automaticamente un archivio vuoto in `data/` e mostra il login owner. Gemini si configura in seguito da `Impostazioni → AI Provider`. Per conservare i dati tra riavvii Railway, monta un volume su `/app/data`. Supabase resta disponibile come opzione avanzata usando `supabase/schema.sql`.
+
+L’archivio autonomo usa `data/workspace.json`, separato dalla demo. Conserva automaticamente un vecchio `data/demo.json` solo quando è marcato come dati reali (`demo: false`). Usa un solo processo e una sola replica. Non include ancora inviti multiutente, allegati, memoria semantica e worker automatico senza Supabase.
 
 ## Prova locale immediata
 
@@ -118,6 +122,8 @@ Storage privato: PNG, JPG, WEBP, PDF, TXT e CSV fino a 10 MB, scaricabili con UR
 
 ## Test
 
+Per verificare il login autonomo: `npm run build` seguito da `npm run test:production`. Il test avvia un server di produzione su una porta libera con credenziali fittizie e un archivio separato. Controlla login/logout, sessioni false, profilo, approvazioni, canali, messaggi, persistenza al riavvio, dominio Railway ed errori del disco. Non usa il tuo sito online e non modifica `data/`.
+
 ```powershell
 npm run lint
 npm run typecheck
@@ -199,7 +205,7 @@ Un progetto è una categoria. I canali condivisi (`Generale`, `Decisioni`, `Oper
 
 ## Confini della verifica di questa consegna
 
-La demo locale, i controlli TypeScript/lint/build, i test unitari, SQL e HTTP sono verificabili senza account esterni. Il repository non contiene credenziali e non è stato pubblicato automaticamente su GitHub o Railway. Email, Realtime nel tuo account, Storage remoto, chiamate Gemini e Tavily richiedono configurazione e collaudo con i servizi reali. Non è stata eseguita una sessione di QA visuale automatizzata nel browser né una build Docker, se Docker non è disponibile.
+La correzione 1.0.1 è stata verificata con build di produzione, TypeScript, lint, test unitari/SQL e test HTTP del login autonomo. Nel browser sono stati verificati accesso, HQ, Impostazioni e salvataggio del profilo su un archivio locale isolato. Il nuovo pacchetto non è stato pubblicato automaticamente su GitHub o Railway. Le credenziali iniziali sono pubbliche e sostituibili con valori personali. Email, Realtime, Storage remoto, chiamate Gemini e Tavily richiedono collaudo con i servizi reali. Docker non è disponibile nell’ambiente di verifica: il container e il volume Railway restano da collaudare online.
 
 Il modulo per proporre task espone anche un piccolo hook WebMCP opzionale nei browser compatibili. Non crea né approva dati automaticamente. Il relativo contratto browser non è stato verificato in un contesto WebMCP; l’interfaccia ordinaria funziona indipendentemente da questo hook.
 

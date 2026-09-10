@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import type { Database } from './database';
+import { AuthRequiredError } from './errors';
 export function admin() {
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY)
     throw new Error('Completa la configurazione Supabase lato server.');
@@ -38,7 +39,7 @@ export async function actor() {
   const {
     data: { user },
   } = await client.auth.getUser();
-  if (!user) throw new Error('Accedi per continuare.');
+  if (!user) throw new AuthRequiredError();
   const { data: membership, error } = await admin()
     .from('team_memberships')
     .select('role')

@@ -167,6 +167,13 @@ export default function Workspace({ initial }: { initial: Snapshot }) {
   }, [modal]);
   useEffect(() => {
     if (s.demo) return;
+    const poll = setInterval(refresh, 15000);
+    if (
+      s.storage !== 'supabase' ||
+      !process.env.NEXT_PUBLIC_SUPABASE_URL ||
+      !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+    )
+      return () => clearInterval(poll);
     const client = createBrowserClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -179,12 +186,11 @@ export default function Workspace({ initial }: { initial: Snapshot }) {
         () => void refresh(),
       )
       .subscribe();
-    const poll = setInterval(refresh, 15000);
     return () => {
       void client.removeChannel(channel);
       clearInterval(poll);
     };
-  }, [s.demo, refresh]);
+  }, [s.demo, s.storage, refresh]);
   useEffect(() => {
     end.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }, [s.items.length, conversation]);
@@ -740,26 +746,84 @@ export default function Workspace({ initial }: { initial: Snapshot }) {
                   </button>
                 </div>
                 <div className="channel-tree">
-                  <div className="channel-category"><span>⌄</span><strong>HQ · TEAM</strong></div>
-                  {items('conversation').filter((c) => !c.project_id && !c.owner_id).map((c) => (
-                    <button key={c.id} className={conversation === c.id ? 'selected' : ''} onClick={() => setConversation(c.id)}>
-                      <MessageSquare size={15} /><span># {c.title.replace(/^HQ · /, '')}<small>Canale condiviso</small></span>
-                    </button>
-                  ))}
-                  {projects.map((p) => <div key={p.id} className="project-channel-group">
-                    <div className="channel-category"><span>⌄</span><strong>{p.title.toUpperCase()}</strong><button className="mini-plus" aria-label={'Nuovo canale in '+p.title} onClick={() => { setProject(p.id); setModal('channel'); }}>+</button></div>
-                    {items('conversation').filter((c) => c.project_id === p.id && !c.owner_id).map((c) => (
-                      <button key={c.id} className={conversation === c.id ? 'selected' : ''} onClick={() => setConversation(c.id)}>
-                        <MessageSquare size={15} /><span># {c.title}<small>{String(c.data.channel || 'canale')} · condiviso</small></span>
+                  <div className="channel-category">
+                    <span>⌄</span>
+                    <strong>HQ · TEAM</strong>
+                  </div>
+                  {items('conversation')
+                    .filter((c) => !c.project_id && !c.owner_id)
+                    .map((c) => (
+                      <button
+                        key={c.id}
+                        className={conversation === c.id ? 'selected' : ''}
+                        onClick={() => setConversation(c.id)}
+                      >
+                        <MessageSquare size={15} />
+                        <span>
+                          # {c.title.replace(/^HQ · /, '')}
+                          <small>Canale condiviso</small>
+                        </span>
                       </button>
                     ))}
-                  </div>)}
-                  <div className="channel-category private-title"><span>⌄</span><strong>CHAT PRIVATE</strong><button className="mini-plus" aria-label="Nuova chat privata" onClick={() => setModal('conversation')}>+</button></div>
-                  {items('conversation').filter((c) => c.owner_id).map((c) => (
-                    <button key={c.id} className={conversation === c.id ? 'selected' : ''} onClick={() => setConversation(c.id)}>
-                      <Lock size={15} /><span>{c.title}<small>Solo tu e ARPAC</small></span>
-                    </button>
+                  {projects.map((p) => (
+                    <div key={p.id} className="project-channel-group">
+                      <div className="channel-category">
+                        <span>⌄</span>
+                        <strong>{p.title.toUpperCase()}</strong>
+                        <button
+                          className="mini-plus"
+                          aria-label={'Nuovo canale in ' + p.title}
+                          onClick={() => {
+                            setProject(p.id);
+                            setModal('channel');
+                          }}
+                        >
+                          +
+                        </button>
+                      </div>
+                      {items('conversation')
+                        .filter((c) => c.project_id === p.id && !c.owner_id)
+                        .map((c) => (
+                          <button
+                            key={c.id}
+                            className={conversation === c.id ? 'selected' : ''}
+                            onClick={() => setConversation(c.id)}
+                          >
+                            <MessageSquare size={15} />
+                            <span>
+                              # {c.title}
+                              <small>{String(c.data.channel || 'canale')} · condiviso</small>
+                            </span>
+                          </button>
+                        ))}
+                    </div>
                   ))}
+                  <div className="channel-category private-title">
+                    <span>⌄</span>
+                    <strong>CHAT PRIVATE</strong>
+                    <button
+                      className="mini-plus"
+                      aria-label="Nuova chat privata"
+                      onClick={() => setModal('conversation')}
+                    >
+                      +
+                    </button>
+                  </div>
+                  {items('conversation')
+                    .filter((c) => c.owner_id)
+                    .map((c) => (
+                      <button
+                        key={c.id}
+                        className={conversation === c.id ? 'selected' : ''}
+                        onClick={() => setConversation(c.id)}
+                      >
+                        <Lock size={15} />
+                        <span>
+                          {c.title}
+                          <small>Solo tu e ARPAC</small>
+                        </span>
+                      </button>
+                    ))}
                 </div>
               </section>
               {chat()}
@@ -1555,8 +1619,15 @@ function ModalContent({
       payload = id
         ? { action: 'memory', id, body: v('body'), status: v('status') }
         : { ...payload, kind: 'memory' };
-    if (type === 'conversation') payload = { ...payload, kind: 'conversation', project_id: null, data: { private: true } };
-    if (type === 'channel') payload = { ...payload, kind: 'conversation', project_id: project || null, data: { channel: v('channel'), kind: 'text' } };
+    if (type === 'conversation')
+      payload = { ...payload, kind: 'conversation', project_id: null, data: { private: true } };
+    if (type === 'channel')
+      payload = {
+        ...payload,
+        kind: 'conversation',
+        project_id: project || null,
+        data: { channel: v('channel'), kind: 'text' },
+      };
     if (type === 'research') payload = { ...payload, kind: 'research_item' };
     if (type === 'profile')
       payload = {
@@ -1966,7 +2037,18 @@ function ModalContent({
               </label>
             )}
             {['task', 'channel'].includes(type) && !id && projectSelect}
-            {type === 'channel' && <label>Nome canale<input name="channel" required maxLength={60} placeholder="es. marketing, contenuti, lancio"/><small>Il canale sarà visibile a tutti i membri con accesso al progetto.</small></label>}
+            {type === 'channel' && (
+              <label>
+                Nome canale
+                <input
+                  name="channel"
+                  required
+                  maxLength={60}
+                  placeholder="es. marketing, contenuti, lancio"
+                />
+                <small>Il canale sarà visibile a tutti i membri con accesso al progetto.</small>
+              </label>
+            )}
             {type === 'project' && (
               <label>
                 Budget proposto (€)
