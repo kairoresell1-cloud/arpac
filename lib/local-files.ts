@@ -51,6 +51,26 @@ export async function createIfMissing(name: string, value: string) {
   }
 }
 
+export async function writeBinary(name: string, buffer: Buffer) {
+  const temp = dataFile(name + '.' + randomUUID() + '.tmp');
+  try {
+    await mkdir(path.dirname(dataFile(name)), { recursive: true });
+    await writeFile(temp, buffer, { mode: 0o600 });
+    await rename(temp, dataFile(name));
+  } catch (error) {
+    await unlink(temp).catch(() => {});
+    throw new LocalStorageError(error);
+  }
+}
+
+export async function readBinary(name: string): Promise<Buffer> {
+  try {
+    return await readFile(/* turbopackIgnore: true */ dataFile(name));
+  } catch (error) {
+    throw new LocalStorageError(error);
+  }
+}
+
 export async function removeFile(name: string) {
   try {
     await unlink(dataFile(name));

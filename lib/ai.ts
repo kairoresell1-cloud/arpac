@@ -4,8 +4,9 @@ import { decrypt } from './crypto';
 import { addRecord } from './store';
 import type { Item } from './types';
 import { z } from 'zod';
-import { item, isStandalone, localEncryptionKey, readLocalAi } from './demo';
-const structuredReply = z.object({
+import { item, isStandalone, localEncryptionKey, readLocalAi, readLocalTavily } from './demo';
+import { upsertEmbedding, matchMemories } from './local-semantic';
+export const structuredReply = z.object({
   text: z.string().max(18000),
   research_query: z.string().max(160).optional(),
   proposals: z
@@ -43,6 +44,47 @@ export async function provider() {
   if (!key) throw new Error('Chiave AI assente. L’owner può configurarla in Impostazioni.');
   return { key, model: data?.model || process.env.GEMINI_MODEL || 'gemini-2.5-flash' };
 }
+// Restituisce la Tavily key decifrata (standalone: da file; altrimenti: env).
+export async function tavilyKey(): Promise<string | null> {
+  if (isStandalone()) {
+    const data = await readLocalTavily();
+    if (!data) return process.env.TAVILY_API_KEY || null;
+    const encKey = process.env.APP_ENCRYPTION_KEY || (await localEncryptionKey());
+    try { return decrypt(data.ciphertext, encKey); } catch { return null; }
+  }
+  return process.env.TAVILY_API_KEY || null;
+}
+
+// Indicizza un record localmente (embedding Gemini → disco).
+export async function indexLocalRecord(
+  id: string,
+  content: string,
+  meta: { project_id: string | null; conversation_id: string | null; owner_id: string | null },
+  key: string,
+  updatedAt: string,
+) {
+  try {
+    const vector = await embedding(content, key);
+    await upsertEmbedding({ id, content, vector, updated_at: updatedAt, ...meta });
+  } catch {
+    // L'indicizzazione è best-effort: un fallimento non blocca la risposta.
+  }
+}
+
+// Ricerca semantica locale usando cosine similarity.
+export async function localSemanticSearch(
+  queryText: string,
+  key: string,
+  opts: { project_id: string | null; owner_id: string | null; conversation_id: string },
+) {
+  try {
+    const vector = await embedding(queryText, key);
+    return await matchMemories(vector, opts);
+  } catch {
+    return 'Recupero semantico locale non disponibile.';
+  }
+}
+
 export async function generate(
   key: string,
   model: string,

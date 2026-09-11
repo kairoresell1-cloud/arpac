@@ -8,7 +8,7 @@ Per il percorso GitHub → Railway leggi **[START-QUI.md](START-QUI.md)**. Le se
 
 Puoi caricare il progetto su GitHub e collegarlo a Railway lasciando vuote le variabili Supabase. In produzione ARPAC crea automaticamente un archivio vuoto in `data/` e mostra il login owner. Gemini si configura in seguito da `Impostazioni → AI Provider`. Per conservare i dati tra riavvii Railway, monta un volume su `/app/data`. Supabase resta disponibile come opzione avanzata usando `supabase/schema.sql`.
 
-L’archivio autonomo usa `data/workspace.json`, separato dalla demo. Conserva automaticamente un vecchio `data/demo.json` solo quando è marcato come dati reali (`demo: false`). Include account membri creati dall’owner, accessi ai singoli progetti e avatar personalizzabili. Usa un solo processo e una sola replica; allegati, ricerca semantica e worker automatico richiedono ancora Supabase.
+L’archivio autonomo usa `data/workspace.json`, separato dalla demo. Conserva automaticamente un vecchio `data/demo.json` solo quando è marcato come dati reali (`demo: false`). Include account membri creati dall’owner, accessi ai singoli progetti e avatar personalizzabili. Usa un solo processo e una sola replica; solo la ricerca semantica (pgvector) richiede ancora Supabase. Gli allegati (max 10 MB, PNG/JPG/WEBP/PDF/TXT/CSV) sono salvati sul filesystem in `data/attachments/` (permessi 0600, non cifrati — non è lo stesso livello di protezione di Supabase Storage) — monta un volume Railway su `/app/data` per non perderli tra i riavvii. Il worker/scheduler (briefing, report, promemoria, idee spontanee, ricerca online con `TAVILY_API_KEY`) **funziona anche in autonomo**, tramite `lib/local-scheduler.ts`: stesso `/api/cron`, stesso worker separato, ma senza recupero semantico (usa solo i dati recenti/pertinenti per progetto) e senza coda con retry — un ciclo fallito riprova al controllo utile successivo.
 
 ## Prova locale immediata
 
@@ -97,6 +97,8 @@ La chiave viene cifrata con AES-256-GCM, nonce casuale e tag di autenticazione. 
 La quota residua non è disponibile dal provider tramite questa integrazione: la UI lo indica, mostrando chiamate generative, token riportati dal provider ed errori registrati. Non sono conteggiati qui i token degli embedding e della verifica chiave: controlla AI Studio per la contabilità completa.
 
 ## Worker e automazioni
+
+Funziona in entrambe le modalità: con Supabase usa la coda PostgreSQL (vedi sotto); in autonomo usa `lib/local-scheduler.ts`, sincrono e senza coda. In entrambi i casi il worker richiama lo stesso `/api/cron` ogni 30 secondi.
 
 Il server HTTP accoda i messaggi; non aspetta Gemini. In un **secondo terminale**, con il server acceso:
 

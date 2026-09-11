@@ -287,3 +287,17 @@ export async function mutateStandalone<T>(fn: (s: LocalWorkspace) => T | Promise
   queue = task.catch(() => {});
   return task;
 }
+
+// ── Tavily key (standalone) ─────────────────────────────────────────────────
+export async function readLocalTavily(): Promise<{
+  ciphertext: string;
+  last4: string;
+} | null> {
+  return readJson('tavily-provider.json');
+}
+export async function writeLocalTavily(
+  value: { ciphertext: string; last4: string } | null,
+) {
+  if (value) await writeJson('tavily-provider.json', value);
+  else await removeFile('tavily-provider.json');
+}

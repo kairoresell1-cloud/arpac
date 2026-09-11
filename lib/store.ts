@@ -13,8 +13,14 @@ export async function snapshot(): Promise<Snapshot> {
     const id = await sessionUserId(jar.get(sessionCookie)?.value);
     if (!id) throw new AuthRequiredError();
     const s = snapshotFor(await readStandalone(), id);
-    const ai = await import('./demo').then((m) => m.readLocalAi());
+    const [ai, tavily, { embeddingCount }] = await Promise.all([
+      import('./demo').then((m) => m.readLocalAi()),
+      import('./demo').then((m) => m.readLocalTavily()),
+      import('./local-semantic'),
+    ]);
     if (ai) s.ai = { configured: true, last4: ai.last4, model: ai.model };
+    s.tavily = { configured: !!tavily, last4: tavily?.last4 || '' };
+    s.semanticCount = await embeddingCount();
     return s;
   }
   const a = await actor();

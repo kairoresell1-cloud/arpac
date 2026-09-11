@@ -20,5 +20,5 @@ export function publicOrigin(req: Request) {
 
 export function requireSameOrigin(req: Request) {
   const origin = req.headers.get('origin');
-  if (origin && origin !== publicOrigin(req)) throw new Error('Origine non autorizzata.');
+  if (!origin || origin !== publicOrigin(req)) throw new Error('Origine non autorizzata.');
 }

@@ -7,10 +7,14 @@ import { generate } from '@/lib/ai';
 import { addRecord, snapshot } from '@/lib/store';
 import { AuthRequiredError, LocalStorageError, errorStatus } from '@/lib/errors';
 import { requireSameOrigin } from '@/lib/request-origin';
-import { isStandalone, localEncryptionKey, writeLocalAi } from '@/lib/demo';
+import { isDemo, isStandalone, localEncryptionKey, writeLocalAi } from '@/lib/demo';
 export async function POST(req: Request) {
   try {
     requireSameOrigin(req);
+    if (isDemo())
+      throw new Error(
+        'La demo non memorizza segreti: collega Supabase oppure prova con una build locale (npm run build && npm run start) per salvare davvero la chiave.',
+      );
     if (isStandalone()) {
       requireOwner((await snapshot()).role);
       const p = z
@@ -82,7 +86,7 @@ export async function POST(req: Request) {
   } catch (e) {
     const known =
       e instanceof Error &&
-      /^(Chiave Gemini|Google ha rifiutato|Quota AI|Provider AI|Inserisci una chiave|Origine non autorizzata|Solo l’owner)/.test(
+      /^(Chiave Gemini|Google ha rifiutato|Quota AI|Provider AI|Inserisci una chiave|Origine non autorizzata|Solo l’owner|La demo)/.test(
         e.message,
       );
     return NextResponse.json(
