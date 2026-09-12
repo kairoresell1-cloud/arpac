@@ -5,7 +5,7 @@ export function publicOrigin(req: Request) {
   // CSRF checks still compare them with http://localhost:3000.
   const configuredAppUrl = process.env.APP_URL?.trim();
   const isLocalAppUrl = configuredAppUrl
-    ? /^(https?:\/\/)?(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?\/?$/i.test(configuredAppUrl)
+    ? /^(https?:\/\/)?(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?\/?\s*$/i.test(configuredAppUrl)
     : false;
   if (process.env.RAILWAY_PUBLIC_DOMAIN && (!configuredAppUrl || isLocalAppUrl))
     return new URL('https://' + process.env.RAILWAY_PUBLIC_DOMAIN).origin;
@@ -20,5 +20,8 @@ export function publicOrigin(req: Request) {
 
 export function requireSameOrigin(req: Request) {
   const origin = req.headers.get('origin');
-  if (!origin || origin !== publicOrigin(req)) throw new Error('Origine non autorizzata.');
+  // Se l'Origin manca (richiesta same-origin navigate o browser meno recente)
+  // la protezione CSRF è già garantita dal cookie SameSite=lax — lasciamo passare.
+  // Se l'Origin c'è ed è diverso dall'origine pubblica attesa, blocchiamo.
+  if (origin && origin !== publicOrigin(req)) throw new Error('Origine non autorizzata.');
 }

@@ -1,7 +1,7 @@
 import 'server-only';
 import { z } from 'zod';
 import { mutateStandalone, item } from './demo';
-import { provider, generate, structuredReply, tavilyKey, indexLocalRecord, localSemanticSearch } from './ai';
+import { provider, generate, structuredReply } from './ai';
 import type { Item, LocalWorkspace } from './types';
 
 const researchResults = z.object({
@@ -146,13 +146,6 @@ async function replyInConversation(
     .map((r) => `${r.title}: ${r.body}`)
     .join('\n');
 
-  // Ricerca semantica locale (embedding Gemini su disco).
-  const semantic = await localSemanticSearch(
-    last.slice(-3000) || c.title,
-    key,
-    { project_id: c.project_id, owner_id: c.owner_id ?? null, conversation_id: c.id },
-  );
-
   const answer = await generate(
     key,
     model,
@@ -160,7 +153,6 @@ async function replyInConversation(
       controllo: reasonForCheck,
       contesto: context,
       membri: s.profiles,
-      ricordi: semantic,
       messaggi: last,
     }),
     true,
@@ -193,16 +185,15 @@ async function replyInConversation(
         r.project_id === c.project_id &&
         Date.now() - new Date(r.created_at).getTime() < 86400000,
     );
-    const tKey = await tavilyKey();
-    if (!tKey) {
-      reply.text += '\n\nLa ricerca online richiede una Tavily API key: configurala in Impostazioni → Ricerca online.';
+    if (!process.env.TAVILY_API_KEY) {
+      reply.text += '\n\nLa ricerca online richiede TAVILY_API_KEY: non ho verificato fonti esterne.';
     } else if (!searchedToday) {
       try {
         const result = await fetch('https://api.tavily.com/search', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            api_key: tKey,
+            api_key: process.env.TAVILY_API_KEY,
             query: reply.research_query,
             max_results: 4,
           }),
@@ -265,24 +256,6 @@ async function replyInConversation(
       data: { reason: reasonForCheck, tokens: answer.tokens },
     }),
   );
-
-  // Indicizza in background le memorie appena aggiunte e i messaggi recenti.
-  // È best-effort: non blocca la risposta in caso di errore.
-  const toIndex = s.items.filter(
-    (r) =>
-      ['memory', 'message'].includes(r.kind) &&
-      r.project_id === c.project_id &&
-      r.updated_at > new Date(Date.now() - 10 * 60000).toISOString(),
-  );
-  for (const r of toIndex) {
-    void indexLocalRecord(
-      r.id,
-      r.title + '\n' + r.body,
-      { project_id: r.project_id, conversation_id: r.conversation_id, owner_id: r.owner_id },
-      key,
-      r.updated_at,
-    );
-  }
 
   return added;
 }

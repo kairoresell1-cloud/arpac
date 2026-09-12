@@ -1,55 +1,26 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { mkdir, chown, lstat } from 'node:fs/promises';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const serverJs = path.resolve(__dirname, '..', 'server.js');
-
-if (!fs.existsSync(serverJs)) {
-  console.error('server.js non trovato in:', serverJs);
-  console.error('Contenuto cartella:', fs.readdirSync(path.dirname(serverJs)));
-  process.exit(1);
-}
-
-process.env.HOSTNAME = '0.0.0.0';
-process.env.ARPAC_DATA_DIR = process.env.ARPAC_DATA_DIR || '/app/data';
-
-const CRON_SECRET = process.env.CRON_SECRET;
-const APP_URL = process.env.APP_URL || 'http://localhost:3000';
-
-async function waitForServer() {
-  for (let i = 0; i < 30; i++) {
+// Railway mounts volumes as root at runtime. Prepare only ARPAC's data directory,
+// then permanently drop privileges before serving any requests.
+const dir = '/app/data';
+process.env.ARPAC_DATA_DIR = dir;
+await mkdir(dir, { recursive: true });
+if ((await lstat(dir)).isSymbolicLink())
+  throw new Error('La directory dati non può essere un link.');
+if (process.getuid?.() === 0) {
+  await chown(dir, 1000, 1000);
+  for (const name of ['demo.json', 'workspace.json', '.app-key', 'ai-provider.json']) {
     try {
-      const r = await fetch(`${APP_URL}/api/health`, { signal: AbortSignal.timeout(2000) });
-      if (r.ok) return true;
-    } catch { /* attendo */ }
-    await new Promise((r) => setTimeout(r, 2000));
+      const file = dir + '/' + name;
+      const stat = await lstat(file);
+      if (!stat.isFile() || stat.isSymbolicLink()) throw new Error('File dati non valido.');
+      await chown(file, 1000, 1000);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
   }
-  return false;
+  process.setgroups([]);
+  process.setgid(1000);
+  process.setuid(1000);
 }
-
-async function cronLoop() {
-  if (!CRON_SECRET) {
-    console.warn('[scheduler] CRON_SECRET mancante — loop disabilitato.');
-    return;
-  }
-  console.log('[scheduler] Attendo server...');
-  await waitForServer();
-  console.log('[scheduler] Loop attivo ogni 30s.');
-  while (true) {
-    try {
-      const r = await fetch(`${APP_URL}/api/cron`, {
-        method: 'POST',
-        headers: { Authorization: `Bearer ${CRON_SECRET}` },
-        signal: AbortSignal.timeout(240_000),
-      });
-      const b = await r.json().catch(() => ({}));
-      if (b.processed > 0)
-        console.log(`[scheduler] elaborati: ${b.processed}`);
-    } catch { /* riprovo */ }
-    await new Promise((r) => setTimeout(r, 30_000));
-  }
-}
-
-cronLoop().catch(() => {});
-await import(pathToFileURL(serverJs).href);
+await import('../server.js');

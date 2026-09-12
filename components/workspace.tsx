@@ -107,8 +107,7 @@ export default function Workspace({ initial }: { initial: Snapshot }) {
   const dialog = useRef<HTMLDialogElement>(null),
     end = useRef<HTMLDivElement>(null),
     providerInput = useRef<HTMLInputElement>(null),
-    modelInput = useRef<HTMLInputElement>(null),
-    tavilyInput = useRef<HTMLInputElement>(null);
+    modelInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const context = (
@@ -1302,7 +1301,12 @@ export default function Workspace({ initial }: { initial: Snapshot }) {
                     )}
                     <label>
                       Modello
-                      <input id="model" ref={modelInput} defaultValue={s.ai.model} />
+                      <input
+                        id="model"
+                        ref={modelInput}
+                        key={`model-${s.ai.model}`}
+                        defaultValue={s.ai.model}
+                      />
                     </label>
                     <label>
                       Gemini API key
@@ -1311,10 +1315,11 @@ export default function Workspace({ initial }: { initial: Snapshot }) {
                         ref={providerInput}
                         type="password"
                         autoComplete="new-password"
+                        key={`apikey-${s.ai.last4 ?? 'empty'}`}
                         placeholder={
                           s.ai.last4
-                            ? 'Configurata · termina con ' + s.ai.last4
-                            : 'Inserisci la chiave API'
+                            ? '✓ Configurata · ultime 4 cifre: ' + s.ai.last4
+                            : 'Incolla la tua chiave API Gemini'
                         }
                         disabled={s.demo}
                       />
@@ -1344,85 +1349,6 @@ export default function Workspace({ initial }: { initial: Snapshot }) {
                   <p>Questa configurazione è riservata all’owner.</p>
                 )}
               </section>
-              {/* ── Ricerca online (Tavily) ── */}
-              <section className="panel settings-card">
-                <div className="section-head">
-                  <h2>Ricerca online</h2>
-                  <span className="badge">Solo owner</span>
-                </div>
-                {s.role === 'owner' ? (
-                  <>
-                    <div className="provider-brand">
-                      <Search size={20} />
-                      <div>
-                        <h3>Tavily Search</h3>
-                        <p>Consente ad ARPAC di cercare fonti online autonomamente.</p>
-                      </div>
-                      <Status
-                        value={s.tavily?.configured ? 'configurata' : 'da configurare'}
-                      />
-                    </div>
-                    {s.demo && (
-                      <p className="notice">La demo non memorizza segreti.</p>
-                    )}
-                    <label>
-                      Tavily API key
-                      <input
-                        id="tavily-key"
-                        ref={tavilyInput}
-                        type="password"
-                        autoComplete="new-password"
-                        placeholder={
-                          s.tavily?.configured
-                            ? 'Configurata · termina con ' + s.tavily.last4
-                            : 'Incolla la chiave da tavily.com'
-                        }
-                        disabled={s.demo}
-                      />
-                    </label>
-                    <p>
-                      <Lock size={12} /> Cifrata AES-256-GCM, mai inviata al browser.{' '}
-                      <a href="https://tavily.com" target="_blank" rel="noopener noreferrer">
-                        Ottieni una chiave gratuita →
-                      </a>
-                    </p>
-                    <div className="toolbar">
-                      <button
-                        className="primary"
-                        disabled={s.demo || busy}
-                        onClick={() => setModal('tavily-save')}
-                      >
-                        {s.tavily?.configured ? 'Sostituisci chiave' : 'Salva e verifica'}
-                      </button>
-                      <button
-                        className="danger-button"
-                        disabled={s.demo || !s.tavily?.configured}
-                        onClick={() => setModal('tavily-remove')}
-                      >
-                        Rimuovi chiave
-                      </button>
-                    </div>
-                    {/* Ricerca semantica */}
-                    <hr />
-                    <h3>Memoria semantica</h3>
-                    <p>
-                      ARPAC usa Gemini per indicizzare messaggi e memorie: trova concetti
-                      correlati anche se le parole sono diverse.
-                    </p>
-                    <div className="usage-row">
-                      <span>Voci indicizzate sul volume</span>
-                      <strong>{s.semanticCount ?? 0}</strong>
-                    </div>
-                    <small>
-                      Le voci vengono indicizzate automaticamente ad ogni risposta di ARPAC.
-                      Richiede volume Railway montato su <code>/app/data</code>.
-                    </small>
-                  </>
-                ) : (
-                  <p>Questa configurazione è riservata all'owner.</p>
-                )}
-              </section>
-
               <section className="panel settings-card">
                 <h2>Utilizzo e automazioni</h2>
                 <div className="usage-row">
@@ -1593,7 +1519,6 @@ export default function Workspace({ initial }: { initial: Snapshot }) {
             openModal={setModal}
             providerInput={providerInput}
             modelInput={modelInput}
-            tavilyInput={tavilyInput}
           />
         </div>
       </dialog>
@@ -1622,7 +1547,6 @@ function ModalContent({
   openModal,
   providerInput,
   modelInput,
-  tavilyInput,
 }: {
   modal: string;
   s: Snapshot;
@@ -1635,7 +1559,6 @@ function ModalContent({
   openModal: (s: string) => void;
   providerInput: React.RefObject<HTMLInputElement | null>;
   modelInput: React.RefObject<HTMLInputElement | null>;
-  tavilyInput: React.RefObject<HTMLInputElement | null>;
 }) {
   const [localBusy, setLocalBusy] = useState(false);
   const [createdAccount, setCreatedAccount] = useState<{
@@ -2016,58 +1939,6 @@ function ModalContent({
                 type === 'provider-save'
                   ? `Gemini verificato e salvato (••••${result.last4}).`
                   : 'Chiave Gemini rimossa.',
-              );
-              close();
-            } catch (e) {
-              notify((e as Error).message);
-            } finally {
-              setLocalBusy(false);
-            }
-          }}
-        >
-          {localBusy ? 'Verifica in corso…' : 'Conferma'}
-        </button>
-      </>
-    );
-  if (type === 'tavily-save' || type === 'tavily-remove')
-    return (
-      <>
-        <h2>
-          {type === 'tavily-save'
-            ? 'Salvare e verificare la chiave Tavily?'
-            : 'Rimuovere la chiave Tavily?'}
-        </h2>
-        <p>
-          {type === 'tavily-save'
-            ? 'La chiave viene verificata con una ricerca reale prima di essere salvata cifrata.'
-            : 'ARPAC non potrà più cercare fonti online finché non inserisci una nuova chiave.'}
-        </p>
-        <button
-          className="primary"
-          disabled={localBusy}
-          onClick={async () => {
-            setLocalBusy(true);
-            try {
-              const input = tavilyInput.current;
-              if (type === 'tavily-save' && !input?.value.trim())
-                throw new Error('Incolla prima la chiave Tavily nel campo sopra.');
-              const res = await fetch('/api/tavily', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  action: type === 'tavily-save' ? 'save' : 'remove',
-                  key: input?.value || '',
-                  confirm: true,
-                }),
-                signal: AbortSignal.timeout(30000),
-              });
-              const result = await res.json();
-              if (!res.ok) throw new Error(result.error);
-              await refresh();
-              notify(
-                type === 'tavily-save'
-                  ? `Tavily verificato e salvato (••••${result.last4}).`
-                  : 'Chiave Tavily rimossa.',
               );
               close();
             } catch (e) {

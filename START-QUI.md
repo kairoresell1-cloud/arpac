@@ -1,66 +1,19 @@
-# ARPAC su Railway — Guida rapida
+# ARPAC su Railway
 
-## 1. Carica il codice su GitHub
+1. Estrai lo ZIP e carica **i file e le cartelle contenuti**, direttamente nel repository GitHub collegato a Railway. Non caricare lo ZIP stesso. `Dockerfile`, `railway.toml` e `package.json` devono essere alla radice.
+2. Attendi che Railway completi il nuovo deploy. La versione corretta risponde con `version: "1.0.1"` all’indirizzo `/api/health`.
+3. Apri il sito e accedi. Senza credenziali personalizzate, l’accesso iniziale è `owner@arpac.local` / `arpac-local-setup`. Se hai già impostato `OWNER_EMAIL` e `OWNER_PASSWORD` su Railway, valgono quei valori.
 
-Estrai lo ZIP e carica i file nella root del repository collegato a Railway.
-`Dockerfile`, `railway.toml` e `package.json` devono stare in radice.
+Il codice crea l’archivio vuoto e le chiavi interne automaticamente. Non devi eseguire SQL, bootstrap o comandi locali. Lascia le variabili Supabase assenti per usare questa modalità. Gemini si inserisce nel sito: **Impostazioni → AI Provider → Salva e verifica**.
 
-## 2. Variabili Railway da impostare (obbligatorie)
+Per conservare dati e chiave Gemini quando il container viene sostituito, serve un volume Railway montato su `/app/data`: tasto destro sul canvas del progetto → crea volume → collegalo al servizio ARPAC → percorso `/app/data`. Il codice prepara i permessi del volume all’avvio. Questo collegamento si fa una volta; non può essere creato dal solo caricamento del codice GitHub. [Documentazione Railway](https://docs.railway.com/volumes).
 
-Nel pannello Railway → il tuo servizio → **Variables**:
+Le credenziali iniziali sono pubbliche nel codice: prima di inserire dati privati imposta valori personali in `OWNER_EMAIL` e `OWNER_PASSWORD`. Questa versione mantiene l’accesso owner della precedente consegna; non crea un nuovo account con un’email qualsiasi.
 
-| Variabile | Come ottenerla |
-|---|---|
-| `APP_URL` | L'URL pubblico Railway, es. `https://arpac-xyz.railway.app` |
-| `APP_ENCRYPTION_KEY` | `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"` |
-| `CRON_SECRET` | `node -e "console.log(require('crypto').randomBytes(24).toString('hex'))"` |
-| `OWNER_EMAIL` | La tua email |
-| `OWNER_PASSWORD` | La tua password |
+La modalità autonoma include un owner, account membri creati dall’owner, accessi ai progetti, profilo, progetti con canali, messaggi, task, approvazioni, calendario, finanze, memorie manuali, configurazione Gemini, allegati (salvati su disco locale), il worker dei briefing/promemoria e la ricerca online (`TAVILY_API_KEY`, senza recupero semantico). Solo la ricerca semantica vera (pgvector) richiede la modalità Supabase descritta nel README.
 
-> **CRON_SECRET è fondamentale**: senza di esso ARPAC non scrive da solo,
-> non fa briefing e non manda reminder. È il segreto che permette al loop
-> interno di chiamare lo scheduler ogni 30 secondi.
+Con questa versione l’owner può aprire **Team → Crea accesso membro**, scegliere nome, email, password e ruolo, selezionare i progetti e consegnare le credenziali mostrate dopo la creazione. Il membro accede dallo stesso login; il suo profilo e i suoi permessi restano separati. Da **Il mio profilo → Personalizza avatar Wii** può creare un personaggio con forma del volto, capelli, occhi, espressione, occhiali, barba e colori.
 
-## 3. Un solo servizio Railway (non due)
+Per Gemini, incolla la chiave nel campo **Impostazioni → AI Provider → Gemini API key**, poi premi **Salva e verifica** e nella finestra premi **Conferma**. La chiave viene prima verificata con una richiesta reale e solo dopo cifrata e salvata. Se la chiave è errata, Google rifiuta il modello o la quota è esaurita, la schermata mantiene il campo e mostra il motivo senza sostituire una chiave funzionante.
 
-Con questa versione **non serve un secondo servizio worker**.
-Il loop automatico parte dentro lo stesso container del sito.
-Vedi i log Railway: cerchi `[scheduler] Loop attivo` per confermare.
-
-## 4. Volume Railway (obbligatorio per persistenza)
-
-Senza volume i dati si perdono ad ogni deploy.
-
-1. Tasto destro sul canvas Railway → **Create Volume**
-2. Collegalo al servizio ARPAC
-3. Percorso: `/app/data`
-
-Il volume salva: workspace, chiave Gemini, chiave Tavily, embeddings semantici.
-
-## 5. Configura Gemini e Tavily dal sito
-
-Dopo il primo deploy:
-1. Accedi con `OWNER_EMAIL` / `OWNER_PASSWORD`
-2. Vai su **Impostazioni → AI Provider** → incolla la chiave Gemini → Salva e verifica
-3. Vai su **Impostazioni → Ricerca online** → incolla la chiave Tavily → Salva e verifica
-
-Le chiavi vengono cifrate AES-256-GCM e salvate sul volume. Non le devi mettere su Railway.
-
-## 6. Verifica che tutto funzioni
-
-- `/api/health` → deve rispondere `{"status":"ok"}`
-- Log Railway → deve comparire `[scheduler] Loop attivo (30s)`
-- Alle 08:00 e 20:00 (fuso Roma) ARPAC scrive da solo nelle chat di progetto
-
-## Cosa fa ARPAC automaticamente (ogni 30 secondi controlla, agisce se necessario)
-
-- **08:00** — Briefing mattutino: priorità del giorno, chi fa cosa
-- **Ogni ora** — Controlla cambiamenti (task aggiornati, spese, proposte) e interviene
-- **Entro un'ora dalla scadenza** — Reminder sul task in scadenza
-- **20:00** — Report giornaliero: cosa è stato fatto, blocchi, piano di domani
-- **Sempre** — Quando qualcuno scrive, ARPAC risponde, propone task/spese, salva memorie
-
-## Credenziali iniziali di default (se non imposti le variabili)
-
-Email: `owner@arpac.local` — Password: `arpac-local-setup`
-Cambia subito le credenziali in produzione.
+Lo ZIP non contiene dati, chiavi, password personali, dipendenze o build. I dati reali della versione precedente vengono mantenuti se presenti sul volume; la demo resta separata.
