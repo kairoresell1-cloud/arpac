@@ -1,27 +1,35 @@
-// Next receives an internal URL behind Railway's HTTPS proxy.
+function normalizeUrl(raw: string): string {
+  // Aggiunge https:// se manca il protocollo
+  if (/^https?:\/\//i.test(raw)) return raw;
+  return 'https://' + raw;
+}
+
 export function publicOrigin(req: Request) {
-  // Railway's public domain must win over an old local APP_URL left in the
-  // service variables. Otherwise browser requests arrive from Railway while
-  // CSRF checks still compare them with http://localhost:3000.
   const configuredAppUrl = process.env.APP_URL?.trim();
   const isLocalAppUrl = configuredAppUrl
-    ? /^(https?:\/\/)?(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?\/?\s*$/i.test(configuredAppUrl)
+    ? /^(https?:\/\/)?(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?\/?$/i.test(configuredAppUrl)
     : false;
+
   if (process.env.RAILWAY_PUBLIC_DOMAIN && (!configuredAppUrl || isLocalAppUrl))
-    return new URL('https://' + process.env.RAILWAY_PUBLIC_DOMAIN).origin;
-  if (configuredAppUrl) return new URL(configuredAppUrl).origin;
-  const url = new URL(req.url);
-  // Standalone Next may use its listening address (0.0.0.0) in req.url.
-  // Host is the origin actually requested by the browser.
+    return new URL(normalizeUrl(process.env.RAILWAY_PUBLIC_DOMAIN)).origin;
+
+  if (configuredAppUrl && !isLocalAppUrl)
+    return new URL(normalizeUrl(configuredAppUrl)).origin;
+
+  // Fallback: ricava l'origine dall'host header della richiesta
   const host = req.headers.get('host');
-  if (host) url.host = host;
+  if (host) {
+    const proto = host.includes('localhost') || host.includes('127.0.0.1') ? 'http' : 'https';
+    return `${proto}://${host}`;
+  }
+
+  const url = new URL(req.url);
   return url.origin;
 }
 
 export function requireSameOrigin(req: Request) {
   const origin = req.headers.get('origin');
-  // Se l'Origin manca (richiesta same-origin navigate o browser meno recente)
-  // la protezione CSRF è già garantita dal cookie SameSite=lax — lasciamo passare.
-  // Se l'Origin c'è ed è diverso dall'origine pubblica attesa, blocchiamo.
+  // Se Origin manca (same-origin navigate) lascia passare — SameSite=lax copre già questo caso.
+  // Se Origin è presente e diverso dall'atteso, blocca.
   if (origin && origin !== publicOrigin(req)) throw new Error('Origine non autorizzata.');
 }
