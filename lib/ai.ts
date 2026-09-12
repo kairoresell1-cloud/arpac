@@ -43,6 +43,15 @@ export async function provider() {
   if (!key) throw new Error('Chiave AI assente. L’owner può configurarla in Impostazioni.');
   return { key, model: data?.model || process.env.GEMINI_MODEL || 'gemini-2.5-flash' };
 }
+function geminiAuthHeaders(key: string): Record<string, string> {
+  // Le nuove chiavi Google AI Studio iniziano con "AQ." e usano Bearer token.
+  // Le vecchie chiavi iniziano con "AIzaSy" e usano x-goog-api-key.
+  // Supportiamo entrambi i formati.
+  if (key.startsWith('AQ.'))
+    return { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` };
+  return { 'Content-Type': 'application/json', 'x-goog-api-key': key };
+}
+
 export async function generate(
   key: string,
   model: string,
@@ -54,7 +63,7 @@ export async function generate(
     `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      headers: geminiAuthHeaders(key),
       body: JSON.stringify({
         systemInstruction: {
           parts: [
@@ -98,7 +107,7 @@ export async function embedding(text: string, key: string) {
     `https://generativelanguage.googleapis.com/v1beta/models/${process.env.GEMINI_EMBEDDING_MODEL || 'gemini-embedding-001'}:embedContent`,
     {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
+      headers: geminiAuthHeaders(key),
       body: JSON.stringify({
         content: { parts: [{ text: text.slice(0, 18000) }] },
         outputDimensionality: 768,

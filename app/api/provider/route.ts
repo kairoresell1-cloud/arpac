@@ -21,7 +21,7 @@ export async function POST(req: Request) {
         .object({
           action: z.enum(['save', 'remove']),
           key: z.string().max(300).optional(),
-          model: z.string().regex(/^gemini-[a-z0-9.-]+$/),
+          model: z.string().regex(/^gemini-[a-z0-9._-]+$/i),
           confirm: z.literal(true),
         })
         .parse(await req.json());
@@ -45,7 +45,7 @@ export async function POST(req: Request) {
       .object({
         action: z.enum(['save', 'remove']),
         key: z.string().max(300).optional(),
-        model: z.string().regex(/^gemini-[a-z0-9.-]+$/),
+        model: z.string().regex(/^gemini-[a-z0-9._-]+$/i),
         confirm: z.literal(true),
       })
       .parse(await req.json());
