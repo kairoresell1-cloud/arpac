@@ -267,6 +267,18 @@ export async function writeLocalAi(
   if (value) await writeJson('ai-provider.json', value);
   else await removeFile('ai-provider.json');
 }
+export async function readLocalTavily(): Promise<{
+  ciphertext: string;
+  last4: string;
+} | null> {
+  return readJson('tavily-provider.json');
+}
+export async function writeLocalTavily(
+  value: { ciphertext: string; last4: string } | null,
+) {
+  if (value) await writeJson('tavily-provider.json', value);
+  else await removeFile('tavily-provider.json');
+}
 export async function mutateDemo<T>(fn: (s: Snapshot) => T | Promise<T>): Promise<T> {
   const task = queue.then(async () => {
     const state = await readDemo();
