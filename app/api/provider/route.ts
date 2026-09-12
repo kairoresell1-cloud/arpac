@@ -6,16 +6,35 @@ import { requireOwner } from '@/lib/rules';
 import { generate } from '@/lib/ai';
 import { addRecord, snapshot } from '@/lib/store';
 import { AuthRequiredError, LocalStorageError, errorStatus } from '@/lib/errors';
-import { requireSameOrigin } from '@/lib/request-origin';
+import { requireSameOrigin, publicOrigin } from '@/lib/request-origin';
 import { isDemo, isStandalone, localEncryptionKey, writeLocalAi } from '@/lib/demo';
+
 export async function POST(req: Request) {
+  // Log sempre visibile nei Deploy Logs Railway — aiuta a diagnosticare problemi CSRF/auth
+  const origin = req.headers.get('origin');
+  const host = req.headers.get('host');
+  const expected = publicOrigin(req);
+  console.log('[ARPAC/provider] POST', {
+    origin,
+    host,
+    expected,
+    isDemo: isDemo(),
+    isStandalone: isStandalone(),
+    APP_URL: process.env.APP_URL,
+    RAILWAY_PUBLIC_DOMAIN: process.env.RAILWAY_PUBLIC_DOMAIN,
+  });
+
   try {
     requireSameOrigin(req);
+    console.log('[ARPAC/provider] CSRF ok');
+
     if (isDemo())
       throw new Error(
         'La demo non memorizza segreti: collega Supabase oppure prova con una build locale (npm run build && npm run start) per salvare davvero la chiave.',
       );
+
     if (isStandalone()) {
+      console.log('[ARPAC/provider] modalità standalone');
       requireOwner((await snapshot()).role);
       const p = z
         .object({
@@ -31,14 +50,20 @@ export async function POST(req: Request) {
       }
       const key = p.key?.trim();
       if (!key) throw new Error('Inserisci una chiave Gemini.');
+      console.log('[ARPAC/provider] chiave ricevuta, tipo:', key.startsWith('AQ.') ? 'AQ (Bearer)' : 'AIzaSy (x-goog-api-key)', 'modello:', p.model);
+      console.log('[ARPAC/provider] verifica Gemini in corso...');
       await generate(key, p.model, 'Rispondi solo: connessione verificata.');
+      console.log('[ARPAC/provider] verifica Gemini ok');
       const ciphertext = encrypt(
         key,
         process.env.APP_ENCRYPTION_KEY || (await localEncryptionKey()),
       );
       await writeLocalAi({ ciphertext, last4: key.slice(-4), model: p.model });
+      console.log('[ARPAC/provider] chiave salvata ok');
       return NextResponse.json({ ok: true, last4: key.slice(-4) });
     }
+
+    console.log('[ARPAC/provider] modalità Supabase');
     const a = await actor();
     requireOwner(a.role);
     const p = z
@@ -66,8 +91,11 @@ export async function POST(req: Request) {
     }
     const key = p.key?.trim();
     if (!key) throw new Error('Inserisci una chiave valida.');
+    console.log('[ARPAC/provider] chiave ricevuta, tipo:', key.startsWith('AQ.') ? 'AQ (Bearer)' : 'AIzaSy (x-goog-api-key)', 'modello:', p.model);
+    console.log('[ARPAC/provider] verifica Gemini in corso...');
     const ciphertext = encrypt(key, process.env.APP_ENCRYPTION_KEY || '');
     await generate(key, p.model, 'Rispondi solo: connessione verificata.');
+    console.log('[ARPAC/provider] verifica Gemini ok');
     const { error } = await db.from('ai_provider_settings').upsert({
       id: 1,
       ciphertext,
@@ -84,9 +112,10 @@ export async function POST(req: Request) {
     );
     return NextResponse.json({ ok: true, last4: key.slice(-4) });
   } catch (e) {
+    console.error('[ARPAC/provider] ERRORE:', e instanceof Error ? e.message : e);
     const known =
       e instanceof Error &&
-      /^(Chiave Gemini|Google ha rifiutato|Quota AI|Provider AI|Inserisci una chiave|Origine non autorizzata|Solo l’owner|La demo)/.test(
+      /^(Chiave Gemini|Google ha rifiutato|Quota AI|Provider AI|Inserisci una chiave|Origine non autorizzata|Solo l'owner|La demo)/.test(
         e.message,
       );
     return NextResponse.json(
