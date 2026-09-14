@@ -80,7 +80,7 @@ export async function generate(
       res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-        body: JSON.stringify(buildBody(candidate)),
+        body: JSON.stringify(buildBody()),
         signal: AbortSignal.timeout(45000),
       });
     } catch (e) {
