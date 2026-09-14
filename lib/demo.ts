@@ -39,7 +39,7 @@ export function seed(): Snapshot {
     role: 'owner',
     demo: true,
     storage: 'demo',
-    ai: { configured: false, last4: '', model: 'gemini-2.5-flash' },
+    ai: { configured: false, last4: '', model: 'gemini-3.8-flash' },
     profiles: [
       user,
       {
@@ -208,7 +208,7 @@ export function blank(): Snapshot {
     role: 'owner',
     demo: false,
     storage: 'local',
-    ai: { configured: false, last4: '', model: 'gemini-2.5-flash' },
+    ai: { configured: false, last4: '', model: 'gemini-3.8-flash' },
     profiles: [user],
     items: [
       {
