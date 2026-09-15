@@ -1306,10 +1306,11 @@ export default function Workspace({ initial }: { initial: Snapshot }) {
                         ref={modelInput}
                         key={`model-${s.ai.model}`}
                         defaultValue={s.ai.model}
+                        placeholder="llama-3.3-70b-versatile"
                       />
                     </label>
                     <label>
-                      Gemini API key
+                      Chiave AI Provider
                       <input
                         id="api-key"
                         ref={providerInput}
@@ -1918,9 +1919,9 @@ function ModalContent({
               const input = providerInput.current;
               const model = modelInput.current;
               if (type === 'provider-save' && !input?.value.trim()) {
-                throw new Error('Incolla prima la chiave Gemini nel campo sopra.');
+                throw new Error('Incolla prima la chiave API nel campo sopra (Groq: gsk_... oppure Gemini: AIzaSy...).');
               }
-              if (!model?.value.trim()) throw new Error('Inserisci il modello Gemini.');
+              if (!model?.value.trim()) throw new Error('Inserisci il nome del modello (es. llama-3.3-70b-versatile per Groq).');
               const res = await fetch('/api/provider', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -1937,8 +1938,8 @@ function ModalContent({
               await refresh();
               notify(
                 type === 'provider-save'
-                  ? `Gemini verificato e salvato (••••${result.last4}).`
-                  : 'Chiave Gemini rimossa.',
+                  ? `Chiave verificata e salvata (••••${result.last4}).`
+                  : 'Chiave AI rimossa.',
               );
               close();
             } catch (e) {
