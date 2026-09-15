@@ -40,7 +40,7 @@ export async function POST(req: Request) {
         .object({
           action: z.enum(['save', 'remove']),
           key: z.string().max(300).optional(),
-          model: z.string().regex(/^gemini-[a-z0-9._-]+$/i),
+          model: z.string().min(3).max(100),
           confirm: z.literal(true),
         })
         .parse(await req.json());
@@ -50,7 +50,7 @@ export async function POST(req: Request) {
       }
       const key = p.key?.trim();
       if (!key) throw new Error('Inserisci una chiave Gemini.');
-      console.log('[ARPAC/provider] chiave ricevuta, tipo:', key.startsWith('AQ.') ? 'AQ (Bearer)' : 'AIzaSy (x-goog-api-key)', 'modello:', p.model);
+      console.log('[ARPAC/provider] chiave ricevuta, provider:', key.startsWith('gsk_') ? 'Groq' : 'Gemini', 'modello:', p.model);
       console.log('[ARPAC/provider] verifica Gemini in corso...');
       await generate(key, p.model, 'Rispondi solo: connessione verificata.');
       console.log('[ARPAC/provider] verifica Gemini ok');
@@ -70,7 +70,7 @@ export async function POST(req: Request) {
       .object({
         action: z.enum(['save', 'remove']),
         key: z.string().max(300).optional(),
-        model: z.string().regex(/^gemini-[a-z0-9._-]+$/i),
+        model: z.string().min(3).max(100),
         confirm: z.literal(true),
       })
       .parse(await req.json());
@@ -91,7 +91,7 @@ export async function POST(req: Request) {
     }
     const key = p.key?.trim();
     if (!key) throw new Error('Inserisci una chiave valida.');
-    console.log('[ARPAC/provider] chiave ricevuta, tipo:', key.startsWith('AQ.') ? 'AQ (Bearer)' : 'AIzaSy (x-goog-api-key)', 'modello:', p.model);
+    console.log('[ARPAC/provider] chiave ricevuta, provider:', key.startsWith('gsk_') ? 'Groq' : 'Gemini', 'modello:', p.model);
     console.log('[ARPAC/provider] verifica Gemini in corso...');
     const ciphertext = encrypt(key, process.env.APP_ENCRYPTION_KEY || '');
     await generate(key, p.model, 'Rispondi solo: connessione verificata.');

@@ -1319,7 +1319,7 @@ export default function Workspace({ initial }: { initial: Snapshot }) {
                         placeholder={
                           s.ai.last4
                             ? '✓ Configurata · ultime 4 cifre: ' + s.ai.last4
-                            : 'Incolla la tua chiave API Gemini'
+                            : 'Chiave Gemini (AIzaSy...) o Groq (gsk_...)'
                         }
                         disabled={s.demo}
                       />

@@ -41,9 +41,19 @@ export async function runLocalScheduler(): Promise<{ processed: number; reason: 
     );
     const scheduledReason =
       hour === 8
-        ? 'Briefing mattutino'
+        ? `BRIEFING MATTUTINO — Analizza la situazione attuale del progetto e scrivi un briefing concreto per il team. 
+Struttura: (1) Stato rapido: cosa è in corso, cosa è bloccato, cosa è in ritardo. 
+(2) Focus di oggi: 1-2 cose su cui concentrarsi, con motivazione basata sui dati disponibili. 
+(3) Se vedi rischi o opportunità che il team potrebbe non aver considerato, segnalali ora. 
+(4) Proponi task specifici solo se sono realistici e assegnabili a qualcuno disponibile. 
+Sii diretto e utile — non ripetere cose già dette ieri se non sono cambiate.`
         : hour === 20
-          ? 'Report giornaliero: fatto, avanzamenti, blocchi, risultati, piano di domani'
+          ? `REPORT SERALE — Scrivi il report di fine giornata per il team.
+Struttura: (1) Cosa è stato fatto oggi (solo fatti concreti dal contesto, non inventare). 
+(2) Chi ha avanzato e su cosa. (3) Blocchi aperti e cosa serve per sbloccarli. 
+(4) Risultati misurabili se presenti (views, vendite, completamenti, ecc). 
+(5) Piano di domani: 1-3 priorità concrete con motivazione. 
+Se la giornata è stata ferma o non hai dati sufficienti, dillo chiaramente invece di inventare attività.`
           : null;
 
     let key: string, model: string;
@@ -70,7 +80,11 @@ export async function runLocalScheduler(): Promise<{ processed: number; reason: 
         processed += await replyInConversation(
           s,
           c,
-          scheduledReason || 'Controlla solo i cambiamenti rilevanti. Evita ripetizioni.',
+          scheduledReason ||
+            `AGGIORNAMENTO — Ci sono stati cambiamenti nel progetto dall'ultimo controllo. 
+Analizza cosa è cambiato, valuta l'impatto sul piano complessivo e scrivi solo se hai qualcosa di concreto da aggiungere: 
+un rischio che emerge, un'opportunità da cogliere, una proposta specifica, o un dato rilevante. 
+Se i cambiamenti non richiedono nessuna azione o commento utile, rispondi SILENZIO.`,
           key,
           model,
         );
@@ -99,7 +113,10 @@ export async function runLocalScheduler(): Promise<{ processed: number; reason: 
             processed += await replyInConversation(
               s,
               c,
-              `Promemoria: ${task.title} entro ${String(task.data.due)}. Verifica disponibilità, senza imporre nuovi impegni.`,
+              `PROMEMORIA SCADENZA — Il task "${task.title}" scade entro un'ora (${String(task.data.due)}).
+Scrivi un promemoria utile per ${s.profiles.find((u: {id: string}) => u.id === String(task.data?.assignee ?? task.owner_id ?? ''))?.name ?? 'il membro assegnato'}: 
+verifica se è ancora fattibile nei tempi, se serve aiuto o se la scadenza va spostata. 
+Non imporre nulla — proponi e chiedi. Se la scadenza è già stata discussa di recente, sii molto breve.`,
               key,
               model,
             );
@@ -150,10 +167,15 @@ async function replyInConversation(
     key,
     model,
     JSON.stringify({
-      controllo: reasonForCheck,
-      contesto: context,
+      istruzione: reasonForCheck,
+      chat_type: 'gruppo',
+      avviso: 'Scrivi solo se hai qualcosa di concreto e utile. Se non hai nulla di rilevante rispondi SILENZIO.',
+      contesto_progetto: context.filter((r) => ['project','memory','financial_entry','financial_proposal'].includes(r.kind)).slice(0, 25),
+      task_attivi: context.filter((r) => r.kind === 'task' && !['completato','annullato'].includes(r.status)).slice(0, 12),
+      proposte_pendenti: context.filter((r) => ['ai_proposal','financial_proposal'].includes(r.kind) && r.status === 'proposto').slice(0, 5),
+      risultati_recenti: context.filter((r) => r.kind === 'task' && r.status === 'completato').slice(0, 5),
       membri: s.profiles,
-      messaggi: last,
+      ultimi_messaggi: last,
     }),
     true,
   );
