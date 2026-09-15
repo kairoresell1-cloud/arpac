@@ -49,16 +49,18 @@ export async function POST(req: Request) {
         return NextResponse.json({ ok: true });
       }
       const key = p.key?.trim();
-      if (!key) throw new Error('Inserisci una chiave Gemini.');
-      console.log('[ARPAC/provider] chiave ricevuta, provider:', key.startsWith('gsk_') ? 'Groq' : 'Gemini', 'modello:', p.model);
-      console.log('[ARPAC/provider] verifica Gemini in corso...');
-      await generate(key, p.model, 'Rispondi solo: connessione verificata.');
-      console.log('[ARPAC/provider] verifica Gemini ok');
+      if (!key) throw new Error('Inserisci una chiave API.');
+      // Se la chiave è Groq (gsk_), usa sempre un modello Groq valido
+      const effectiveModel = key.startsWith('gsk_') ? 'llama3-70b-8192' : p.model;
+      console.log('[ARPAC/provider] chiave ricevuta, provider:', key.startsWith('gsk_') ? 'Groq' : 'Gemini', 'modello effettivo:', effectiveModel);
+      console.log('[ARPAC/provider] verifica in corso...');
+      await generate(key, effectiveModel, 'Rispondi solo: ok.');
+      console.log('[ARPAC/provider] verifica ok');
       const ciphertext = encrypt(
         key,
         process.env.APP_ENCRYPTION_KEY || (await localEncryptionKey()),
       );
-      await writeLocalAi({ ciphertext, last4: key.slice(-4), model: p.model });
+      await writeLocalAi({ ciphertext, last4: key.slice(-4), model: effectiveModel });
       console.log('[ARPAC/provider] chiave salvata ok');
       return NextResponse.json({ ok: true, last4: key.slice(-4) });
     }
@@ -91,10 +93,11 @@ export async function POST(req: Request) {
     }
     const key = p.key?.trim();
     if (!key) throw new Error('Inserisci una chiave valida.');
-    console.log('[ARPAC/provider] chiave ricevuta, provider:', key.startsWith('gsk_') ? 'Groq' : 'Gemini', 'modello:', p.model);
-    console.log('[ARPAC/provider] verifica Gemini in corso...');
+    const effectiveModel2 = key.startsWith('gsk_') ? 'llama3-70b-8192' : p.model;
+    console.log('[ARPAC/provider] chiave ricevuta, provider:', key.startsWith('gsk_') ? 'Groq' : 'Gemini', 'modello effettivo:', effectiveModel2);
+    console.log('[ARPAC/provider] verifica in corso...');
     const ciphertext = encrypt(key, process.env.APP_ENCRYPTION_KEY || '');
-    await generate(key, p.model, 'Rispondi solo: connessione verificata.');
+    await generate(key, effectiveModel2, 'Rispondi solo: ok.');
     console.log('[ARPAC/provider] verifica Gemini ok');
     const { error } = await db.from('ai_provider_settings').upsert({
       id: 1,
