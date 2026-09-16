@@ -51,7 +51,7 @@ export async function POST(req: Request) {
       const key = p.key?.trim();
       if (!key) throw new Error('Inserisci una chiave API.');
       // Se la chiave è Groq (gsk_), usa sempre un modello Groq valido
-      const effectiveModel = key.startsWith('gsk_') ? 'llama3-70b-8192' : p.model;
+      const effectiveModel = key.startsWith('gsk_') ? 'openai/gpt-oss-120b' : p.model;
       console.log('[ARPAC/provider] chiave ricevuta, provider:', key.startsWith('gsk_') ? 'Groq' : 'Gemini', 'modello effettivo:', effectiveModel);
       console.log('[ARPAC/provider] verifica in corso...');
       await generate(key, effectiveModel, 'Rispondi solo: ok.');
@@ -93,7 +93,7 @@ export async function POST(req: Request) {
     }
     const key = p.key?.trim();
     if (!key) throw new Error('Inserisci una chiave valida.');
-    const effectiveModel2 = key.startsWith('gsk_') ? 'llama3-70b-8192' : p.model;
+    const effectiveModel2 = key.startsWith('gsk_') ? 'openai/gpt-oss-120b' : p.model;
     console.log('[ARPAC/provider] chiave ricevuta, provider:', key.startsWith('gsk_') ? 'Groq' : 'Gemini', 'modello effettivo:', effectiveModel2);
     console.log('[ARPAC/provider] verifica in corso...');
     const ciphertext = encrypt(key, process.env.APP_ENCRYPTION_KEY || '');
@@ -103,7 +103,7 @@ export async function POST(req: Request) {
       id: 1,
       ciphertext,
       last4: key.slice(-4),
-      model: p.model,
+      model: effectiveModel2,
       updated_at: new Date().toISOString(),
     });
     if (error) throw new Error('Salvataggio non riuscito.');

@@ -58,7 +58,7 @@ export async function generate(
 
   if (key.startsWith('gsk_')) {
     const groq = new Groq({ apiKey: key });
-    const groqModel = (model && !model.startsWith('gemini')) ? model : 'llama-3.3-70b-versatile';
+    const groqModel = (model && !model.startsWith('gemini')) ? model : 'openai/gpt-oss-120b';
     const messages: Groq.Chat.ChatCompletionMessageParam[] = [
       { role: 'system', content: systemText },
       { role: 'user', content: prompt + (media.length > 0 ? '\n[Allegati non supportati con Groq]' : '') },

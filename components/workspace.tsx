@@ -1288,7 +1288,7 @@ export default function Workspace({ initial }: { initial: Snapshot }) {
                     <div className="provider-brand">
                       <Sparkles />
                       <div>
-                        <h3>Google Gemini</h3>
+                        <h3>Groq</h3>
                         <p>Il motore di ARPAC, lato server.</p>
                       </div>
                       <Status value={s.ai.configured ? 'configurata' : 'da configurare'} />
@@ -1299,18 +1299,9 @@ export default function Workspace({ initial }: { initial: Snapshot }) {
                         demo non memorizza segreti.
                       </p>
                     )}
+                    <input id="model" ref={modelInput} type="hidden" defaultValue="openai/gpt-oss-120b" />
                     <label>
-                      Modello
-                      <input
-                        id="model"
-                        ref={modelInput}
-                        key={`model-${s.ai.model}`}
-                        defaultValue={s.ai.model}
-                        placeholder="llama-3.3-70b-versatile"
-                      />
-                    </label>
-                    <label>
-                      Chiave AI Provider
+                      Chiave Groq
                       <input
                         id="api-key"
                         ref={providerInput}
@@ -1320,7 +1311,7 @@ export default function Workspace({ initial }: { initial: Snapshot }) {
                         placeholder={
                           s.ai.last4
                             ? '✓ Configurata · ultime 4 cifre: ' + s.ai.last4
-                            : 'Chiave Gemini (AIzaSy...) o Groq (gsk_...)'
+                            : 'Chiave Groq (gsk_...)'
                         }
                         disabled={s.demo}
                       />
@@ -1919,9 +1910,12 @@ function ModalContent({
               const input = providerInput.current;
               const model = modelInput.current;
               if (type === 'provider-save' && !input?.value.trim()) {
-                throw new Error('Incolla prima la chiave API nel campo sopra (Groq: gsk_... oppure Gemini: AIzaSy...).');
+                throw new Error('Incolla prima la chiave API Groq (gsk_...) nel campo sopra.');
               }
-              if (!model?.value.trim()) throw new Error('Inserisci il nome del modello (es. llama-3.3-70b-versatile per Groq).');
+              if (type === 'provider-save' && !input!.value.trim().startsWith('gsk_')) {
+                throw new Error('Questa non sembra una chiave Groq: deve iniziare con "gsk_".');
+              }
+              if (!model?.value.trim()) throw new Error('Errore interno: modello mancante.');
               const res = await fetch('/api/provider', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
