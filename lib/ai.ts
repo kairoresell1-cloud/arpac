@@ -7,6 +7,7 @@ import { addRecord } from './store';
 import type { Item } from './types';
 import { z } from 'zod';
 import { item, isStandalone, localEncryptionKey, readLocalAi } from './demo';
+import { localEmbedding } from './embed';
 export const structuredReply = z.object({
   text: z.string().max(18000),
   research_query: z.string().max(160).optional(),
@@ -63,14 +64,33 @@ export async function generate(
       { role: 'system', content: systemText },
       { role: 'user', content: prompt + (media.length > 0 ? '\n[Allegati non supportati con Groq]' : '') },
     ];
-    const completion = await groq.chat.completions.create({
-      model: groqModel,
-      messages,
-      max_tokens: 3000,
-      temperature: 0.7,
-    });
-    const text = completion.choices[0]?.message?.content || '';
+    let completion;
+    try {
+      completion = await groq.chat.completions.create({
+        model: groqModel,
+        messages,
+        max_tokens: 4000,
+        temperature: structured ? 0.4 : 0.7,
+        // Forza JSON valido quando serve una risposta strutturata (proposte,
+        // idee, memorie): senza questo Groq può anteporre testo libero al
+        // JSON e rompere il parsing a valle.
+        ...(structured ? { response_format: { type: 'json_object' as const } } : {}),
+      });
+    } catch (e) {
+      const status = (e as { status?: number })?.status;
+      console.error('[ARPAC/groq] errore chiamata:', status, e instanceof Error ? e.message : e);
+      throw new Error(
+        status === 401 ? 'Chiave Groq non autorizzata: controlla che sia valida.' :
+        status === 429 ? 'Quota Groq esaurita: riprova più tardi.' :
+        status === 400 ? `Il modello Groq "${groqModel}" non è valido o non è più disponibile.` :
+        'Provider Groq non disponibile al momento.',
+      );
+    }
+    let text = completion.choices[0]?.message?.content || '';
     if (!text) throw new Error('Il provider non ha restituito una risposta.');
+    // Rete di sicurezza: alcuni modelli avvolgono comunque il JSON in un
+    // blocco markdown nonostante il response_format richiesto.
+    if (structured) text = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
     console.log('[ARPAC/groq] risposta ok, modello:', groqModel, 'token:', completion.usage?.total_tokens);
     return { text, tokens: completion.usage?.total_tokens || 0 };
   }
@@ -121,16 +141,8 @@ export async function generate(
     `Provider AI non disponibile (status: ${lastStatus}).`,
   );
 }
-export async function embedding(text: string, key: string) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key },
-    body: JSON.stringify({ content: { parts: [{ text: text.slice(0, 18000) }] }, outputDimensionality: 768 }),
-    signal: AbortSignal.timeout(30000),
-  });
-  if (!res.ok) throw new Error('Ricerca semantica temporaneamente non disponibile.');
-  return (await res.json()).embedding.values as number[];
+export function embedding(text: string): number[] {
+  return localEmbedding(text);
 }
 
 export async function enqueue(kind: string, payload: Record<string, unknown>, dedup?: string) {
@@ -158,7 +170,7 @@ export async function processJob() {
         .eq('id', String(p.record_id))
         .single();
       if (r && !['obsoleto', 'archiviato', 'eliminato'].includes(r.status)) {
-        const vector = await embedding(r.title + '\n' + r.body, key);
+        const vector = embedding(r.title + '\n' + r.body);
         const { error } = await db.from('embeddings').upsert({
           record_id: r.id,
           content: r.title + '\n' + r.body,
@@ -244,7 +256,7 @@ export async function processJob() {
         .join('\n');
       let semantic: unknown = [];
       try {
-        const vector = await embedding(last.slice(-4000) || c.title, key);
+        const vector = embedding(last.slice(-4000) || c.title);
         const { data } = await db.rpc('match_memories', {
           query_embedding: vector,
           p_project: c.project_id,
