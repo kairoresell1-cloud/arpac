@@ -482,10 +482,21 @@ export async function POST(req: Request) {
             let reply: z.infer<typeof structuredReply>;
             try {
               reply = structuredReply.parse(JSON.parse(answer.text));
-            } catch {
+            } catch (parseError) {
+              console.error(
+                '[ARPAC/reply] JSON non valido dal modello:',
+                parseError instanceof Error ? parseError.message : parseError,
+                '| testo grezzo:',
+                answer.text.slice(0, 500),
+              );
               // Risposta non in JSON valido: mostra comunque qualcosa di onesto
               // invece di far fallire silenziosamente l'invio del messaggio.
-              reply = { text: 'Non sono riuscito a formulare una risposta valida. Riprova.', proposals: [], memories: [] };
+              reply = {
+                text: 'Non sono riuscito a formulare una risposta valida. Riprova.',
+                research_query: undefined,
+                proposals: [],
+                memories: [],
+              };
             }
             const text =
               reply.text.trim() === 'SILENZIO' || !reply.text.trim()

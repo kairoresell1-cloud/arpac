@@ -207,7 +207,13 @@ async function replyInConversation(
   let reply: z.infer<typeof structuredReply>;
   try {
     reply = structuredReply.parse(JSON.parse(answer.text));
-  } catch {
+  } catch (parseError) {
+    console.error(
+      '[ARPAC/scheduler] JSON non valido dal modello:',
+      parseError instanceof Error ? parseError.message : parseError,
+      '| testo grezzo:',
+      answer.text.slice(0, 500),
+    );
     return 0; // risposta non valida: meglio tacere che scrivere spazzatura
   }
 

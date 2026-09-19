@@ -9,26 +9,47 @@ import { z } from 'zod';
 import { item, isStandalone, localEncryptionKey, readLocalAi } from './demo';
 import { localEmbedding } from './embed';
 export const structuredReply = z.object({
-  text: z.string().max(18000),
-  research_query: z.string().max(160).optional(),
+  text: z
+    .string()
+    .max(18000)
+    .nullable()
+    .optional()
+    .transform((v) => v ?? ''),
+  // I modelli, specialmente in JSON mode, scrivono spessissimo `null`
+  // esplicito per "questo campo non serve ora" invece di ometterlo o usare
+  // un array vuoto. z.optional()/z.default() in zod scattano SOLO su
+  // `undefined`, mai su `null` esplicito — quindi ogni risposta con
+  // `"research_query": null` (comunissima) falliva la validazione anche
+  // dopo una chiamata API perfettamente riuscita. .nullable() prima di
+  // .optional()/.transform() copre entrambi i casi.
+  research_query: z
+    .string()
+    .max(160)
+    .nullable()
+    .optional()
+    .transform((v) => v || undefined),
   proposals: z
     .array(
       z.object({
         type: z.enum(['project', 'task', 'expense']),
         title: z.string().min(1).max(200),
         body: z.string().max(4000),
-        amount: z.number().min(0).max(1000000).optional(),
-        assignee: z.string().optional(),
-        due: z.string().optional(),
-        minutes: z.number().min(1).max(10000).optional(),
+        amount: z.number().min(0).max(1000000).nullable().optional().transform((v) => v ?? undefined),
+        assignee: z.string().nullable().optional().transform((v) => v ?? undefined),
+        due: z.string().nullable().optional().transform((v) => v ?? undefined),
+        minutes: z.number().min(1).max(10000).nullable().optional().transform((v) => v ?? undefined),
       }),
     )
     .max(4)
-    .default([]),
+    .nullable()
+    .optional()
+    .transform((v) => v ?? []),
   memories: z
     .array(z.object({ title: z.string().max(200), body: z.string().max(3000) }))
     .max(3)
-    .default([]),
+    .nullable()
+    .optional()
+    .transform((v) => v ?? []),
 });
 export async function provider() {
   if (isStandalone()) {
