@@ -6,7 +6,7 @@ import { AuthRequiredError, LocalStorageError, errorStatus } from '@/lib/errors'
 import { requireSameOrigin } from '@/lib/request-origin';
 import { actor, admin } from '@/lib/supabase';
 import { canTransition, requireOwner, canEditMemory } from '@/lib/rules';
-import { enqueue, provider, generate } from '@/lib/ai';
+import { enqueue, provider, generate, structuredReply } from '@/lib/ai';
 import type { Item } from '@/lib/types';
 import { avatarValueSchema } from '@/lib/avatar';
 const schema = z.object({
@@ -439,15 +439,84 @@ export async function POST(req: Request) {
         else if (isStandalone()) {
           try {
             const ai = await provider();
-            const answer = await generate(ai.key, ai.model, p.body);
+            // BUG risolto: prima questo ramo chiamava generate(ai.key, ai.model, p.body)
+            // — cioè passava al modello SOLO il testo appena scritto dall'utente, senza
+            // nessun dato reale su progetto/task/membri/storia della chat, e senza
+            // structured=true. Risultato concreto: (1) il modello inventava fatti di
+            // sana pianta (nessun dato vero da cui partire), e (2) l'istruzione di
+            // sistema "in un controllo automatico rispondi SILENZIO" veniva letta
+            // alla lettera anche in una chat diretta con una persona vera, e la
+            // parola "SILENZIO" finiva pubblicata come se fosse una risposta.
+            const recent = state.items
+              .filter((i) => i.kind === 'message' && i.conversation_id === conversation!.id)
+              .sort((x, y) => y.created_at.localeCompare(x.created_at))
+              .slice(0, 16)
+              .reverse()
+              .map((m) => `${m.title}: ${m.body}`)
+              .join('\n');
+            const relevant = state.items.filter(
+              (i) =>
+                ['memory', 'task', 'financial_entry', 'ai_proposal', 'financial_proposal'].includes(
+                  i.kind,
+                ) &&
+                !['obsoleto', 'archiviato', 'eliminato'].includes(i.status) &&
+                (!i.project_id || i.project_id === project),
+            );
+            const payload = {
+              istruzione:
+                'MESSAGGIO DIRETTO DI UNA PERSONA VERA — non è un controllo automatico: rispondi sempre, non usare mai SILENZIO qui.',
+              chat_type: conversation!.owner_id ? 'privata' : 'gruppo',
+              messaggio_utente: p.body,
+              ultimi_messaggi: recent,
+              task_attivi: relevant
+                .filter((i) => i.kind === 'task' && !['completato', 'annullato'].includes(i.status))
+                .slice(0, 12),
+              memorie: relevant.filter((i) => i.kind === 'memory').slice(0, 10),
+              proposte_pendenti: relevant
+                .filter((i) => ['ai_proposal', 'financial_proposal'].includes(i.kind) && i.status === 'proposto')
+                .slice(0, 5),
+              finanze_recenti: relevant.filter((i) => i.kind === 'financial_entry').slice(0, 8),
+              membri: state.profiles,
+            };
+            const answer = await generate(ai.key, ai.model, JSON.stringify(payload), true);
+            let reply: z.infer<typeof structuredReply>;
+            try {
+              reply = structuredReply.parse(JSON.parse(answer.text));
+            } catch {
+              // Risposta non in JSON valido: mostra comunque qualcosa di onesto
+              // invece di far fallire silenziosamente l'invio del messaggio.
+              reply = { text: 'Non sono riuscito a formulare una risposta valida. Riprova.', proposals: [], memories: [] };
+            }
+            const text =
+              reply.text.trim() === 'SILENZIO' || !reply.text.trim()
+                ? 'Dimmi pure di cosa hai bisogno.'
+                : reply.text;
             await insert(
-              item('message', 'ARPAC', answer.text, {
+              item('message', 'ARPAC', text, {
                 conversation_id: conversation!.id,
                 project_id: project,
                 owner_id: owner,
                 data: { author: 'ARPAC', tokens: answer.tokens },
               }),
             );
+            for (const proposal of reply.proposals) {
+              if (proposal.type === 'task' && !state.profiles.some((u) => u.id === proposal.assignee)) continue;
+              if (proposal.type === 'expense' && !proposal.amount) continue;
+              await insert(
+                item(
+                  proposal.type === 'project' ? 'ai_proposal' : proposal.type === 'expense' ? 'financial_proposal' : 'task',
+                  proposal.title,
+                  proposal.body,
+                  { project_id: project, owner_id: owner, status: 'proposto', data: { ...proposal } },
+                ),
+              );
+            }
+            for (const memory of reply.memories) {
+              if (relevant.some((i) => i.kind === 'memory' && i.title === memory.title)) continue;
+              await insert(
+                item('memory', memory.title, memory.body, { project_id: project, owner_id: owner }),
+              );
+            }
           } catch {
             await insert(
               item(

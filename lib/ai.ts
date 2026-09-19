@@ -307,7 +307,9 @@ export async function processJob() {
         key,
         model,
         JSON.stringify({
-          istruzione: p.reason || "Rispondi all'ultimo messaggio del membro in modo utile e concreto.",
+          istruzione:
+            p.reason ||
+            "MESSAGGIO DIRETTO DI UNA PERSONA VERA — non è un controllo automatico: rispondi sempre, in modo utile e concreto. Non usare mai SILENZIO qui.",
           chat_type: c.owner_id ? 'privata_con_membro' : 'gruppo',
           avviso: c.owner_id
             ? 'Chat privata: non condividere info personali nel gruppo senza consenso esplicito.'
@@ -418,6 +420,9 @@ export async function processJob() {
             data: { memory_id: m.id, message_ids: (recent || []).map((r) => r.id) },
           }),
         );
+      }
+      if (reply.text.trim() === 'SILENZIO' && job.kind !== 'automatic') {
+        reply.text = 'Dimmi pure di cosa hai bisogno.';
       }
       if (reply.text.trim() !== 'SILENZIO')
         output.push(
