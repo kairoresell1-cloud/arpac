@@ -69,8 +69,18 @@ export async function generate(
       completion = await groq.chat.completions.create({
         model: groqModel,
         messages,
-        max_tokens: 4000,
+        max_tokens: 6000,
         temperature: structured ? 0.4 : 0.7,
+        // openai/gpt-oss-120b (e altri modelli "reasoning" su Groq) pensano
+        // prima di rispondere: senza queste due opzioni, il ragionamento
+        // interno può (a) finire mescolato nel testo della risposta e
+        // rompere il JSON, oppure (b) consumare così tanti token da tagliare
+        // a metà la risposta finale prima ancora che venga scritta.
+        // 'hidden' garantisce che message.content contenga SOLO la risposta
+        // finale; 'low' tiene il ragionamento breve, riducendo sia il
+        // rischio di troncamento sia la latenza (utile per una chat diretta).
+        reasoning_format: 'hidden',
+        reasoning_effort: 'low',
         // Forza JSON valido quando serve una risposta strutturata (proposte,
         // idee, memorie): senza questo Groq può anteporre testo libero al
         // JSON e rompere il parsing a valle.
@@ -88,9 +98,15 @@ export async function generate(
     }
     let text = completion.choices[0]?.message?.content || '';
     if (!text) throw new Error('Il provider non ha restituito una risposta.');
-    // Rete di sicurezza: alcuni modelli avvolgono comunque il JSON in un
-    // blocco markdown nonostante il response_format richiesto.
-    if (structured) text = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+    if (structured) {
+      text = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
+      // Rete di sicurezza: se nonostante reasoning_format:'hidden' il modello
+      // aggiunge comunque testo prima/dopo il JSON, ne isoliamo solo il
+      // blocco { ... } più esterno invece di far fallire il parsing a valle.
+      const start = text.indexOf('{');
+      const end = text.lastIndexOf('}');
+      if (start !== -1 && end !== -1 && end > start) text = text.slice(start, end + 1);
+    }
     console.log('[ARPAC/groq] risposta ok, modello:', groqModel, 'token:', completion.usage?.total_tokens);
     return { text, tokens: completion.usage?.total_tokens || 0 };
   }
