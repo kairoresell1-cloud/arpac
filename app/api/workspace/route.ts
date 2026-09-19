@@ -6,7 +6,7 @@ import { AuthRequiredError, LocalStorageError, errorStatus } from '@/lib/errors'
 import { requireSameOrigin } from '@/lib/request-origin';
 import { actor, admin } from '@/lib/supabase';
 import { canTransition, requireOwner, canEditMemory } from '@/lib/rules';
-import { enqueue, provider, generate, structuredReply } from '@/lib/ai';
+import { enqueue, provider, generate, structuredReply, looksLikeUngroundedSchedule } from '@/lib/ai';
 import type { Item } from '@/lib/types';
 import { avatarValueSchema } from '@/lib/avatar';
 const schema = z.object({
@@ -524,6 +524,7 @@ export async function POST(req: Request) {
             }
             for (const memory of reply.memories) {
               if (relevant.some((i) => i.kind === 'memory' && i.title === memory.title)) continue;
+              if (looksLikeUngroundedSchedule(memory.title + ' ' + memory.body, recent)) continue;
               await insert(
                 item('memory', memory.title, memory.body, { project_id: project, owner_id: owner }),
               );

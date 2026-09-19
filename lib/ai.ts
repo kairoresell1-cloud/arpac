@@ -183,6 +183,21 @@ export function embedding(text: string): number[] {
   return localEmbedding(text);
 }
 
+/**
+ * Rete di sicurezza tecnica, non solo prompt: un orario specifico (es. "10:00")
+ * scritto in una memoria ma assente da qualsiasi messaggio reale della chat è
+ * quasi certamente un impegno inventato dal modello, non un fatto confermato
+ * da una persona. Il prompt da solo istruisce a non farlo, ma modelli medi
+ * possono comunque sbagliare: questo controllo scarta la memoria a prescindere
+ * da cosa dice il prompt, per evitare che un'allucinazione diventi un "fatto"
+ * permanente che il modello rilegge come vero nelle risposte successive.
+ */
+export function looksLikeUngroundedSchedule(memoryText: string, realMessages: string): boolean {
+  const times = memoryText.match(/\b\d{1,2}[:.]\d{2}\b/g);
+  if (!times) return false;
+  return times.some((t) => !realMessages.includes(t));
+}
+
 export async function enqueue(kind: string, payload: Record<string, unknown>, dedup?: string) {
   const { error } = await admin()
     .from('ai_jobs')
@@ -444,6 +459,7 @@ export async function processJob() {
         }
       for (const memory of reply.memories) {
         if (context.some((r) => r.kind === 'memory' && r.title === memory.title)) continue;
+        if (looksLikeUngroundedSchedule(memory.title + ' ' + memory.body, last)) continue;
         const m = item('memory', memory.title, memory.body, {
           project_id: c.project_id,
           owner_id: c.owner_id,

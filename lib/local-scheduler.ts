@@ -1,7 +1,7 @@
 import 'server-only';
 import { z } from 'zod';
 import { mutateStandalone, item } from './demo';
-import { provider, generate, structuredReply } from './ai';
+import { provider, generate, structuredReply, looksLikeUngroundedSchedule } from './ai';
 import type { Item, LocalWorkspace } from './types';
 
 const researchResults = z.object({
@@ -289,6 +289,7 @@ async function replyInConversation(
     for (const memory of reply.memories) {
       if (s.items.some((r) => r.kind === 'memory' && r.project_id === projectId && r.title === memory.title))
         continue;
+      if (looksLikeUngroundedSchedule(memory.title + ' ' + memory.body, payload.ultimi_messaggi)) continue;
       s.items.push(item('memory', memory.title, memory.body, { project_id: projectId }));
       added++;
     }
