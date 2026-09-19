@@ -202,7 +202,10 @@ async function replyInConversation(
   if (already || !payload) return 0;
 
   // Chiamata AI FUORI dal lock: può durare secondi senza bloccare nessuno.
-  const answer = await generate(key, model, JSON.stringify(payload), true);
+  // Solo messaggi spontanei al gruppo (mai una risposta diretta a una
+  // persona): un impegno di ragionamento più alto riduce il rischio di
+  // "confermare" fatti inventati in un messaggio che tutto il team vede.
+  const answer = await generate(key, model, JSON.stringify(payload), true, [], 'medium');
 
   let reply: z.infer<typeof structuredReply>;
   try {

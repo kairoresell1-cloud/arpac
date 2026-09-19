@@ -75,6 +75,7 @@ export async function generate(
   prompt: string,
   structured = false,
   media: { inlineData: { mimeType: string; data: string } }[] = [],
+  effort: 'low' | 'medium' = 'low',
 ) {
   const systemText = ARPAC_SYSTEM + (structured ? ' ' + ARPAC_STRUCTURED_ADDON : '');
 
@@ -101,7 +102,7 @@ export async function generate(
         // finale; 'low' tiene il ragionamento breve, riducendo sia il
         // rischio di troncamento sia la latenza (utile per una chat diretta).
         reasoning_format: 'hidden',
-        reasoning_effort: 'low',
+        reasoning_effort: effort,
         // Forza JSON valido quando serve una risposta strutturata (proposte,
         // idee, memorie): senza questo Groq può anteporre testo libero al
         // JSON e rompere il parsing a valle.
@@ -360,6 +361,7 @@ export async function processJob() {
         }),
         true,
         media,
+        job.kind === 'automatic' ? 'medium' : 'low',
       );
       const reply = structuredReply.parse(JSON.parse(answer.text));
       // Una chat privata non pubblica proposte al gruppo senza una scelta esplicita del membro.
