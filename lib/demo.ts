@@ -39,7 +39,7 @@ export function seed(): Snapshot {
     role: 'owner',
     demo: true,
     storage: 'demo',
-    ai: { configured: false, last4: '', model: 'llama-3.3-70b-versatile' },
+    ai: { configured: false, last4: '', model: 'openai/gpt-oss-120b' },
     profiles: [
       user,
       {
@@ -208,7 +208,7 @@ export function blank(): Snapshot {
     role: 'owner',
     demo: false,
     storage: 'local',
-    ai: { configured: false, last4: '', model: 'llama-3.3-70b-versatile' },
+    ai: { configured: false, last4: '', model: 'openai/gpt-oss-120b' },
     profiles: [user],
     items: [
       {

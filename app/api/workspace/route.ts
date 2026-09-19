@@ -213,14 +213,24 @@ export async function POST(req: Request) {
             .update({ ...d, onboarded: true })
             .eq('id', a.id);
           if (error) throw new Error('Profilo non salvato.');
-        } else
+        } else {
+          // BUG CRITICO risolto: `s.user` nello storage grezzo è un campo
+          // statico legacy (sempre l'owner), diverso da `state.user`, che è
+          // già correttamente risolto sopra in base al cookie di sessione
+          // di CHI sta chiamando l'API in questo momento. Scrivere su
+          // `s.user` invece che sul profilo dell'utente reale faceva sì che
+          // l'onboarding di un membro qualsiasi sovrascrivesse il profilo
+          // (nome, avatar, bio) dell'owner con i dati del membro.
+          const targetId = state.user.id;
           await (isDemo() ? mutateDemo : mutateStandalone)((s) => {
-            Object.assign(s.user, d, { onboarded: true });
-            Object.assign(
-              s.profiles.find((u) => u.id === s.user.id)!,
-              s.user,
-            );
+            const profile = s.profiles.find((u) => u.id === targetId);
+            if (!profile) throw new Error('Profilo non trovato.');
+            Object.assign(profile, d, { onboarded: true });
+            // Il campo legacy s.user rispecchia SOLO il profilo dell'owner:
+            // va aggiornato solo se è davvero l'owner a salvare se stesso.
+            if (s.user.id === targetId) Object.assign(s.user, d, { onboarded: true });
           });
+        }
       } else {
         await insert(
           item(

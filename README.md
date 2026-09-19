@@ -98,19 +98,21 @@ La quota residua non è disponibile dal provider tramite questa integrazione: la
 
 ## Worker e automazioni
 
-Funziona in entrambe le modalità: con Supabase usa la coda PostgreSQL (vedi sotto); in autonomo usa `lib/local-scheduler.ts`, sincrono e senza coda. In entrambi i casi il worker richiama lo stesso `/api/cron` ogni 30 secondi.
+**Non serve più configurare nessun servizio separato.** ARPAC ora include uno scheduler integrato (`instrumentation.ts`) che parte da solo insieme al server web: appena il container è in esecuzione, ogni 30 secondi controlla se c'è qualcosa da scrivere (briefing, report, promemoria, idee spontanee), esattamente come faceva prima il worker esterno — ma dentro lo stesso processo. Funziona così in entrambe le modalità: con Supabase usa la coda PostgreSQL (vedi sotto), in autonomo usa `lib/local-scheduler.ts`. Un solo `Dockerfile`, un solo servizio Railway.
 
-Il server HTTP accoda i messaggi; non aspetta Gemini. In un **secondo terminale**, con il server acceso:
+Il server HTTP accoda i messaggi; non aspetta il provider AI durante l'invio di un messaggio — la risposta arriva al giro successivo dello scheduler (entro 30 secondi).
+
+**Worker esterno: rimasto disponibile, ma opzionale.** Se preferisci un processo separato (es. per isolare esplicitamente il carico delle chiamate AI da quello delle richieste web, o se in futuro scali su più repliche Supabase), `scripts/worker.ts` e `railway.worker.toml`/`Dockerfile.worker` continuano a funzionare invariati — richiamano lo stesso `/api/cron` ogni 30 secondi con `CRON_SECRET`. Non serve però per il funzionamento normale: se non lo deployi, lo scheduler integrato fa comunque il suo lavoro.
 
 ```powershell
 node --env-file=.env.local --import tsx scripts/worker.ts
 ```
 
-In Railway crea un secondo servizio dallo stesso repository, scegli `railway.worker.toml` come file di configurazione. Il worker ha bisogno solo di `APP_URL` e `CRON_SECRET` e può usare il dominio HTTPS pubblico del servizio web. `Dockerfile.worker` avvia un processo Node indipendente. Non usare soltanto un timer nel processo web: il worker separato rende esplicita la responsabilità dei job.
+Il ciclo (integrato o esterno) elabora al massimo tre job per giro e accoda analisi orarie. PostgreSQL assegna i job con `FOR UPDATE SKIP LOCKED`, recupera lock scaduti, deduplica controlli e promemoria. Le risposte, proposte e memorie AI sono salvate in una transazione. Il retry usa backoff esponenziale; dopo cinque tentativi passa a failed e l'owner può riprovare da Impostazioni. Chat e dati restano disponibili senza quota.
 
-Il worker richiama `/api/cron` ogni 30 secondi. La route è protetta da un confronto a tempo costante del segreto, elabora al massimo tre job per richiesta e accoda analisi orarie. PostgreSQL assegna i job con `FOR UPDATE SKIP LOCKED`, recupera lock scaduti, deduplica controlli e promemoria. Le risposte, proposte e memorie AI sono salvate in una transazione. Il retry usa backoff esponenziale; dopo cinque tentativi passa a failed e l’owner può riprovare da Impostazioni. Chat e dati restano disponibili senza quota.
+Orari Europe/Rome: briefing alle 08, report alle 20, cambiamenti rilevanti ogni ora e promemoria per task nell'ora successiva. Il report include avanzamenti, blocchi, risultati e piano di domani. Lo scheduler deve restare attivo (cioè il server deve restare in esecuzione): se il container si riavvia, il prossimo giro utile recupera solo lo stato corrente, non i briefing storici saltati nel frattempo. ARPAC può rispondere `SILENZIO` per evitare messaggi inutili.
 
-Orari Europe/Rome: briefing alle 08, report alle 20, cambiamenti rilevanti ogni ora e promemoria per task nell’ora successiva. Il report include avanzamenti, blocchi, risultati e piano di domani. Il worker deve restare attivo: se è spento, non vengono recuperati automaticamente tutti i briefing storici saltati. ARPAC può rispondere `SILENZIO` per evitare messaggi inutili.
+**Limite onesto:** lo scheduler integrato richiede un processo Node persistente (`output: 'standalone'`, come su Railway/Docker). Su una piattaforma serverless "a funzioni" (dove il processo si ferma tra una richiesta e l'altra, es. Vercel Functions) un `setInterval` in-process non sopravvive: in quel caso resta necessario il worker esterno con un vero cron esterno alla piattaforma.
 
 ## Memoria, ricerca e file
 

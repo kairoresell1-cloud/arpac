@@ -255,17 +255,31 @@ export async function processJob() {
         .map((r: Item) => `${r.title}: ${r.body}`)
         .join('\n');
       let semantic: unknown = [];
-      try {
-        const vector = embedding(last.slice(-4000) || c.title);
-        const { data } = await db.rpc('match_memories', {
-          query_embedding: vector,
-          p_project: c.project_id,
-          p_owner: c.owner_id,
-          p_conversation: c.id,
-        });
-        semantic = data;
-      } catch {
-        semantic = 'Recupero semantico indisponibile; usa solo i dati forniti.';
+      // Su una conversazione appena creata (nessun messaggio ancora) non c'è
+      // un argomento reale da cercare: interrogare la memoria con solo il
+      // titolo del canale (spesso generico, es. "Generale") restituiva
+      // comunque i "6 più vicini" anche quando nessuno era pertinente, e il
+      // modello finiva per raccontare come fatti presenti ricordi di
+      // progetti/conversazioni completamente diversi. Meglio nessun ricordo
+      // che un ricordo sbagliato spacciato per contesto.
+      if (last.trim().length > 0) {
+        try {
+          const vector = embedding(last.slice(-4000));
+          const { data } = await db.rpc('match_memories', {
+            query_embedding: vector,
+            p_project: c.project_id,
+            p_owner: c.owner_id,
+            p_conversation: c.id,
+          });
+          // Rete di sicurezza lato app: se il database non ha ancora la
+          // soglia minima di somiglianza (vedi migrazione 005), la applichiamo
+          // comunque qui prima di passare i ricordi al modello.
+          semantic = Array.isArray(data)
+            ? data.filter((row: { similarity?: number }) => (row.similarity ?? 1) > 0.12)
+            : data;
+        } catch {
+          semantic = 'Recupero semantico indisponibile; usa solo i dati forniti.';
+        }
       }
       const media: { inlineData: { mimeType: string; data: string } }[] = [];
       for (const attachment of (recent || [])
