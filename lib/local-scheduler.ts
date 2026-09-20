@@ -124,7 +124,12 @@ Non imporre nulla — proponi e chiedi. Se la scadenza è già stata discussa di
   for (const job of [...jobs, ...reminderJobs]) {
     try {
       processed += await replyInConversation(job, key, model);
-    } catch {
+    } catch (error) {
+      console.error(
+        '[ARPAC/scheduler] job fallito:',
+        job.conversationId,
+        error instanceof Error ? error.message : error,
+      );
       await mutateStandalone((s: LocalWorkspace) => {
         s.items.push(
           item(

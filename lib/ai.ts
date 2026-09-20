@@ -58,7 +58,7 @@ export async function provider() {
       ? decrypt(data.ciphertext, process.env.APP_ENCRYPTION_KEY || (await localEncryptionKey()))
       : undefined;
     if (!key) throw new Error('Chiave AI assente. Configurala da Impostazioni.');
-    return { key, model: data?.model || 'gemini-3.8-flash' };
+    return { key, model: data?.model || 'openai/gpt-oss-120b' };
   }
   const { data } = await admin().from('ai_provider_settings').select('*').eq('id', 1).maybeSingle();
   const key = data
@@ -507,7 +507,15 @@ export async function processJob() {
       if (commit) throw new Error('Risposta non salvata.');
     }
     await db.from('ai_jobs').update({ status: 'done' }).eq('id', job.id);
-  } catch {
+  } catch (error) {
+    console.error(
+      '[ARPAC/job]',
+      job.id,
+      'tentativo',
+      job.attempts,
+      'fallito:',
+      error instanceof Error ? error.message : error,
+    );
     const terminal = job.attempts >= 5;
     await db
       .from('ai_jobs')

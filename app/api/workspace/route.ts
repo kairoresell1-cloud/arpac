@@ -529,19 +529,19 @@ export async function POST(req: Request) {
                 item('memory', memory.title, memory.body, { project_id: project, owner_id: owner }),
               );
             }
-          } catch {
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.error('[ARPAC/reply] risposta AI fallita:', message);
+            const userText = message.startsWith('Chiave AI assente')
+              ? 'Messaggio salvato. Configura la chiave Groq da Impostazioni per ricevere una risposta AI.'
+              : `Messaggio salvato, ma la risposta AI non è riuscita: ${message}`;
             await insert(
-              item(
-                'message',
-                'ARPAC',
-                'Messaggio salvato. Configura Gemini da Impostazioni per ricevere una risposta AI.',
-                {
-                  conversation_id: conversation!.id,
-                  project_id: project,
-                  owner_id: owner,
-                  data: { author: 'ARPAC', simulated: true },
-                },
-              ),
+              item('message', 'ARPAC', userText, {
+                conversation_id: conversation!.id,
+                project_id: project,
+                owner_id: owner,
+                data: { author: 'ARPAC', simulated: true },
+              }),
             );
           }
         } else {
