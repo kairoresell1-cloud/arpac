@@ -3,41 +3,30 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev --hostname 0.0.0.0",
+    "dev": "next dev",
     "build": "next build",
-    "start": "node scripts/start.mjs",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
-    "test": "tsx --test tests/*.test.ts",
-    "worker": "tsx scripts/worker.ts",
-    "bootstrap": "tsx --env-file=.env.local scripts/bootstrap.ts",
-    "test:http": "tsx --test tests/http/*.test.ts",
-    "test:production": "node --test tests/production.mjs"
+    "start": "next start",
+    "lint": "next lint"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.24.1",
-    "@supabase/ssr": "^0.7.0",
-    "@supabase/supabase-js": "^2.57.0",
-    "groq-sdk": "^1.6.0",
-    "lucide-react": "^0.468.0",
-    "next": "^16.0.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "server-only": "^0.0.1",
-    "zod": "^4.1.0"
+    "next": "14.2.35",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "zod": "3.23.8",
+    "groq-sdk": "0.7.0",
+    "@supabase/supabase-js": "2.45.4",
+    "nanoid": "5.0.7",
+    "bcryptjs": "2.4.3",
+    "jose": "5.9.3"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.8",
-    "@electric-sql/pglite-pgvector": "^0.0.9",
-    "@tailwindcss/postcss": "^4.1.0",
-    "@types/node": "^24.0.0",
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
-    "eslint": "^9.35.0",
-    "eslint-config-next": "^16.0.0",
-    "prettier": "^3.9.6",
-    "tailwindcss": "^4.1.0",
-    "tsx": "^4.20.0",
-    "typescript": "^5.9.0"
+    "typescript": "5.6.3",
+    "@types/node": "20.16.11",
+    "@types/react": "18.3.11",
+    "@types/react-dom": "18.3.1",
+    "@types/bcryptjs": "2.4.6",
+    "tailwindcss": "3.4.13",
+    "postcss": "8.4.47",
+    "autoprefixer": "10.4.20"
   }
 }
